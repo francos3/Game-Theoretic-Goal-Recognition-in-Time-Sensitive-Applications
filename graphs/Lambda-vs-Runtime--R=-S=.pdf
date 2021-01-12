@@ -1,0 +1,6 @@
+"lambda_vs_runtime_single_run.plot" line 29: warning: Skipping data file with no valid points
+
+plot filename using 1:2:xticlabel(1) notitle with linespoints
+                                                             ^
+"lambda_vs_runtime_single_run.plot" line 29: x range is invalid
+
