@@ -71,6 +71,7 @@ public:
 	void make_full_paths(std::map<int,shared_ptr<BasePath> > *FullOriginPaths);
 	std::map<int,shared_ptr<BasePath> >* get_pt_paths(){return &m_mpPerimPaths;};
 	void print_paths();
+	void print_paths_costs();
 	void get_perim_nodes(set<int> *perim_nodes,int lambda_limit);
 	shared_ptr<BasePath> recover_shortest_full_path(int sink);
 	shared_ptr<BasePath> recover_shortest_perim_path(int sink);
@@ -78,6 +79,7 @@ public:
 	void dump_edges();
 	void print_perim_paths();
 	bool is_node_reachable(int sink);
+	double get_cost(int sink);
 	int get_perim_size();
 	void improve_distances(unordered_set<int> *FO_nodes, vector<Link> *FO_edges,unordered_map<pair<int,int>,float,hash_pair> *best_d);
 protected:

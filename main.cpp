@@ -547,6 +547,296 @@ void random_orig_and_dest_placement_SaT(){
   }
   cout<<endl;
 }
+void create_create_augmented_graph_from_SaT_file(){//
+  cout<<"hello create_augmented_graph,stocastic GO"<<flush<<endl;
+  std::ifstream in(input_filename.c_str());
+  std::ifstream in2(input_filename.c_str());
+  lks.reserve(16000);
+  string str;
+  total_nodes=0;
+  int total_edges=0;
+  
+  //vector<vector<Link> > boundary_edges;
+  //vector<vector<Link> >dest_to_dest_edges;
+  vector<vector<Link> > lks_boundary;
+  vector<vector<Link> > lks_dest;
+
+  
+    
+  //cout<<"hello1"<<flush<<endl;
+  //First pass to get list of all nodes
+  while (getline(in2, str)){
+    vector<string> results;
+    boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
+	cout<<"results[1]"<<results[1]<<endl;
+    auto ret = nodes_set.insert(stoi(results[0]));
+    if(ret.second==true)
+      total_nodes++;
+    ret = nodes_set.insert(stoi(results[1]));
+    if(ret.second==true)
+      total_nodes++;
+	cout<<"total_nodes="<<total_nodes<<endl;
+  }
+  //If random, choose from nodes_set randomly
+  //if a destination proves unreachable, WE ARE FINISHED
+  //SHOULD FIND A BETTER WAY
+  if(random_destinations){//Both origin and destination random selection
+    random_orig_and_dest_placement_SaT();
+  }
+   //Now initialize all variables dependent on Destinations
+  //boundary_edges.resize(Destinations.size());
+  //dest_to_dest_edges.resize(Destinations.size());
+  
+  current_graph.resize(Destinations.size());
+  current_graph_dest_to_dest.resize(Destinations.size());
+
+  lks_boundary.resize(Destinations.size());
+  lks_dest.resize(Destinations.size());
+  
+  current_graph.resize(Destinations.size());
+  current_graph_dest_to_dest.resize(Destinations.size());
+  
+  while (getline(in, str)){
+    vector<string> results;
+    boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
+    //std::vector<std::string> results((std::istream_iterator<string>(iss)),
+    //                             std::istream_iterator<string>());
+      //cout<<results[0]<<flush<<endl;
+      //cout<<results[1]<<flush<<endl;
+      //cout<<results[2]<<flush<<endl;
+      //cout<<"hello1a"<<flush<<endl;
+      //cout<<","<<results[1]<<flush<<","<<results[2]<<flush<<endl;
+      //cout<<"dest_index[results[1]]:"<<flush<<stoi(results[1])<<flush<<endl;
+    if(stoi(results[1])==start){
+      continue;//skipping origin incomming edges
+    }
+    if(stoi(results[0])==stoi(results[1])){//no loops
+      cout<<"\t\tskipped loop,from,"<<stoi(results[0])<<",to,"<<stoi(results[1])<<endl;
+      continue;
+    }
+    if(all_destinations.find(stoi(results[0]))!=all_destinations.end()){
+      continue;//ignoring outgoing edges from destinations
+    }
+    else if(all_destinations.find(stoi(results[1]))!=all_destinations.end()){//incoming destination edge
+      //Adding reverse edge for backwards dest_to_dest and boundary graphs
+      Link reverse_link{stoi(results[1]),stoi(results[0]),stof(results[2])};
+      cout<<"Added reverse link for destination_index:,"<<dest_index[stoi(results[1])]<<",from:,"<<stoi(results[1])<<",to:,"<<stoi(results[0])<<",weight:,"<<stof(results[2])<<endl;
+    }
+    Link temp_link{stoi(results[0]),stoi(results[1]),stof(results[2])};
+    
+    lks.push_back(temp_link);
+    total_edges++;
+  }
+  cout<<"main_graph, total_edges:,"<<total_edges<<endl;
+  file_node_counter=total_nodes;
+  //Now create Dijkstra Graph
+  main_graph.set_number_vertices( file_node_counter );
+  for(long i=0;i<total_edges;i++){
+    main_graph.add_link( lks[i].u, lks[ i ].v, lks[ i ].weight );
+  }
+
+  main_graph.setv();
+  cout<<"total_nodes:"<<total_nodes<<",main_graph:"<<main_graph.get_number_vertices()<<endl;
+  main_dijkstra_alg=make_unique<DijkstraShortestPathAlg>(&main_graph);
+      
+  //BasePath* result_path = main_dijkstra_alg->get_shortest_path(
+      //main_graph.get_vertex(start), main_graph.get_vertex(Destinations[0]));
+  //main_graph.dump_edges();
+  //for (auto edge : lks){
+  //  cout<<"from:,"<<edge.u<<",->,"<<edge.v<<",weight:,"<<edge.weight<<endl;
+  //}
+  auto timenow = 
+      chrono::system_clock::to_time_t(chrono::system_clock::now()); 
+  cout<<"before determine_all_shortest_paths,time:"<<ctime(&timenow) << endl;
+  main_dijkstra_alg->determine_all_shortest_paths(main_graph.get_vertex(start),-1);
+  timenow = chrono::system_clock::to_time_t(chrono::system_clock::now()); 
+  cout<<"after determine_all_shortest_paths,time:"<<ctime(&timenow) << endl;//exit(1);
+  
+  //STOCASTIC CODE
+  //First get current cost for any node
+  cout<<"node costs_reg:"<<endl;
+  int reachable_nodes=0;
+  for(auto node : nodes_set){
+    if(!main_dijkstra_alg->is_node_reachable(node)){
+		reachable_nodes++;
+		//cout<<"node "<<node<<" is not reachable"<<endl;
+    }
+    else{
+      //cout<<"reachable node:"<<node<<",cost:"<<main_dijkstra_alg->get_cost(node)<<endl;
+    }
+  }
+  cout<<"Reachable nodes:"<<reachable_nodes<<endl;
+  //CHECK destinations are reachable
+  for (auto destination : Destinations){
+    if(!main_dijkstra_alg->is_node_reachable(destination)){
+      cerr<<"Destination:,"<<destination<<",not reachable from origin:,"<<start<<",stopping search"<<endl;
+      exit(1);
+    }
+    else{
+      cout<<"Destination:,"<<destination<<",is reachable from origin:,"<<start<<",continuing search"<<endl;
+    }
+  }
+  cout<<"hola12"<<endl;
+  //States are pair <node,g>
+  //we call Λ^{d}_{ss'} the probability that the target transits from v to v' if its destination is d  and has already incurred a cost x to reach v.
+  //vector<map<pair<int,int>,float> > Delta;
+  //Delta.resize(Destinations.size());
+  //We need to determine if a state is feasible
+  //That requires paths to destinations
+  for(size_t dest=0;dest<Destinations.size();dest++){
+    //boundary graphs
+    current_graph[dest].set_number_vertices(total_nodes);//skipping origin
+    for(auto add : lks_boundary[dest]){
+      //add reverse edges specific to boundary graphs
+      if(!(main_dijkstra_alg->is_node_reachable(add.v)&&main_dijkstra_alg->is_node_reachable(add.u))){
+	continue;
+      }
+      //cout<<"adding current_graph reverse edges["<<dest<<"]"<<",add.u:"<<add.u<<",add.v:"<<add.v<<"add.weight:"<<add.weight<<",vertices:"<<file_node_counter - 1 <<endl;
+      current_graph[dest].add_link(add.u, add.v, add.weight );
+    }
+    
+    current_graph_dest_to_dest[dest].set_number_vertices(total_nodes );//skipping origin
+    for(auto add : lks_dest[dest]){
+      //add reverse edges specific to dest_to_dest graphs
+      if(!(main_dijkstra_alg->is_node_reachable(add.v)&&main_dijkstra_alg->is_node_reachable(add.u))){
+	continue;
+      }
+      //cout<<"adding current_graph_dest_to_dest reverse edges["<<dest<<"]"<<",add.u:"<<add.u<<",add.v:"<<add.v<<"add.weight:"<<add.weight<<endl;
+      current_graph_dest_to_dest[dest].add_link(add.u, add.v, add.weight );
+    }
+    for(long i=0;i<total_edges;i++){
+      if(lks[i].u==start){
+	continue;//skipping edges leaving origin for boundary
+      }
+      else if(all_destinations.find(lks[i].v)!=all_destinations.end()){//skipping edges into any destination for boundary graphs
+	//but keeping them for dest to dest search
+	/*current_graph_dest_to_dest[dest].add_link(lks[i].u, lks[ i ].v, lks[ i ].weight );
+	cout<<"Added origin outgoing link for destination_index:,"<<dest<<",from:,"<<lks[i].u<<",to:,"<<lks[i].v<<",weight:,"<<lks[i].weight<<endl;*/
+	continue;
+      }
+      //cout<<"adding current_graph_reverse_link edges["<<dest<<"]"<<",lks[i].v:"<<lks[i].v<<",lks[i].u:"<<lks[i].u<<"lks[i].weight:"<<lks[i].weight<<endl;
+      current_graph[dest].add_link(lks[i].v, lks[ i ].u, lks[ i ].weight );
+    }
+    current_graph[dest].setv();
+    current_graph[dest].set_number_vertices(total_nodes);//skipping origin
+    cout<<"total_nodes:"<<total_nodes<<",current_graph["<<dest<<"]:,"<<current_graph[dest].get_number_vertices()<<endl;
+    Dijkstra_algs.push_back(DijkstraShortestPathAlg(&(current_graph[dest])));
+
+    cout<<"adding bidirectional edges for dest_to_dest["<<dest<<"]"<<endl;
+    for(long i=0;i<total_edges;i++){
+      if(lks[i].u==start){//skipping origin outgoing edges
+	continue;
+      }
+      //FOR CALCULATING GEODETIC DISTANCE, WE CREATE A LINK IN BOTH DIRECTIONS AS LONG AS 
+      //ONE DIRECTION EXISTS
+    //cout<<"adding bidirectional edges for dest_to_dest["<<dest<<"]"<<",lks[i].u:"<<lks[i].u<<",lks[i].v:"<<lks[i].v<<"lks[i].weight:"<<lks[i].weight<<endl;
+      current_graph_dest_to_dest[dest].add_link( lks[i].v, lks[ i ].u, lks[ i ].weight );
+      current_graph_dest_to_dest[dest].add_link( lks[i].u, lks[ i ].v, lks[ i ].weight );
+    }
+    current_graph_dest_to_dest[dest].setv();
+    current_graph_dest_to_dest[dest].set_number_vertices(total_nodes);//skipping origin
+    cout<<"total_nodes:"<<total_nodes<<",current_graph_dest_to_dest["<<dest<<"]:,"<<current_graph_dest_to_dest[dest].get_number_vertices()<<endl;
+
+    /*current_graph_dest_to_dest[dest].clear();
+    current_graph_dest_to_dest[dest].set_number_vertices(3);
+    if(dest==0){
+      Link temp_link{116622,116623,1.5};
+      current_graph_dest_to_dest[0].add_link(temp_link.u,temp_link.v,temp_link.weight);
+      Link temp_link2{116623,117023,1.5};
+      current_graph_dest_to_dest[0].add_link(temp_link2.u,temp_link2.v,temp_link2.weight);
+    }
+    else{
+      current_graph_dest_to_dest[1].add_link(117023,116623,1.5);
+      current_graph_dest_to_dest[1].add_link(116623,116622,1.5);
+    }
+    current_graph_dest_to_dest[dest].dump_edges();*/
+    Dijkstra_algs_dest_to_dest.push_back(DijkstraShortestPathAlg(&(current_graph_dest_to_dest[dest])));
+    for(size_t dest2=0;dest2<Destinations.size();dest2++){
+      if(dest==dest2)
+	continue;
+
+      BasePath* result = Dijkstra_algs_dest_to_dest[dest].get_shortest_path(
+	  current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(Destinations[dest2]));
+      //BasePath* result = Dijkstra_algs_dest_to_dest[dest].get_shortest_path(
+//	  current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(25157));
+      //cout<<"\t"<<result->get_path_string()<<",Weight:"<<result->Weight()<<endl;
+      cout<<"\tdest_to_dest,dest1:,"<<Destinations[dest]<<",dest2:"<<Destinations[dest2]<<",Weight:"<<result->Weight()<<",length:"<<result->length()<<endl;
+      //BasePath* main_result1 = main_dijkstra_alg->get_shortest_path(
+//	  main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]));
+  //    cout<<"\torig_to_dest1,start:,"<<start<<",dest2:"<<Destinations[dest]<<",Weight:"<<main_result1->Weight()<<",length:"<<main_result1->length()<<endl;
+    //  BasePath* main_result2 = main_dijkstra_alg->get_shortest_path(
+//	  main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest2]));
+  //    cout<<"\torig_to_dest2,start:,"<<start<<",dest2:"<<Destinations[dest2]<<",Weight:"<<main_result2->Weight()<<",length:"<<main_result2->length()<<endl;
+
+      
+    }
+  }
+  //STOCASTIC CODE Example for dest[0]
+  //Get all paths from dest[0]
+  //Get distance from node v to destination
+  for(size_t dest=0;dest<Destinations.size();dest++){
+	cout<<"hola,destination:"<<Destinations[dest]<<endl;
+	Dijkstra_algs_dest_to_dest[dest].determine_all_shortest_paths(current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]),-1);
+	for(auto node : nodes_set){
+		if(!main_dijkstra_alg->is_node_reachable(node)){
+		//cout<<"node "<<node<<" is not reachable from start"<<endl;
+		continue;
+		}
+		else{
+		cout<<"\treachable node:"<<node<<",cost to destination["<<Destinations[dest]<<"]:"<<Dijkstra_algs_dest_to_dest[dest].get_cost(node);
+		cout<<",distance to start:,"<<main_dijkstra_alg->get_cost(node)<<endl;
+		}
+	}
+  }
+  //Dijkstra_algs[0].print_perim_paths();
+
+//NOW CREATE AUGMENTED GRAPH
+//GIVEN BUDGET C
+//ORIGIN Note IS (Orig,0)
+//A valid edge from (s,s',C) IS ALL STATES SUCH THAT
+//1) Exists a dest s.t. cost(s)+delta(s,d)<C and
+//2) Exists a dest s.t. cost(s)+W(s,s')+delta(s',d)<=C and 
+//3) CycleCheck: None of the ancestor edges are equal to s'
+
+//Algorithm:
+//Output: Edges and Nodes of Augmented Graph
+//0) Create origin node NO(Orig,0,NoParent)
+//2) Add NO to OpenList, fifo order
+//3) pop-node N1(state s, cost c1, node ParentNode)
+//4) ForAll s' ∈ children(s):
+//    5) If s' ∈ D:
+//        5a)Finished, add edge(s,s') and associated nodes to AugGraph; continue
+//    6) if not valid(2): continue;
+//    7) If not CycleCheck(s,ParentNode): continue;
+//    8) CreateNode N2(s',c1+W(s,s'),N1)
+//    9) CreateAugGraphEdge(N1,N2) and Nodes
+//    10) Add N2 to OpenList.
+
+//Algorithm:CycleCheck(state s1,ParentNode))
+//while(True):
+//   1)If ParentNode.state==Orig 
+//    return false
+//   2)else if ParentNode.State==s1
+//      return true
+//   3)ParentNode=ParentNode.ParentNode
+
+
+
+
+
+
+  exit(0);
+
+//For every budget C and destination d, we can define an augmented directed
+//graph G (d) (C) having as set of nodes X (d) (C) and edges (s, s ′ ) such that s ∈(d)
+//X (d) (C) and s ′ ∈ N s (C). The state (o, 0) is called the augmented origin; it is
+//a source and typically is simply indicated as o. States of type (d, x) with d ∈ D
+//are called augmented destinations and are instead sinks. By construction there
+//are no other sinks in the graph. We drop the budget indication C in the various
+//quantities, whenever this does not create ambiguity.
+
+}
+
 void create_grid_nodes_and_edges_from_SaT_file(){
   cout<<"hello SaT"<<flush<<endl;
   std::ifstream in(input_filename.c_str());
@@ -649,6 +939,19 @@ void create_grid_nodes_and_edges_from_SaT_file(){
   main_dijkstra_alg->determine_all_shortest_paths(main_graph.get_vertex(start),-1);
   timenow = chrono::system_clock::to_time_t(chrono::system_clock::now()); 
   cout<<"after determine_all_shortest_paths,time:"<<ctime(&timenow) << endl;//exit(1);
+  cout<<"node costs:"<<endl;
+  int reachable_nodes=0;
+  for(auto node : nodes_set){
+    if(!main_dijkstra_alg->is_node_reachable(node)){
+	  reachable_nodes++;
+      //cout<<"node "<<node<<" is not reachable"<<endl;
+    }
+    else{
+      //cout<<"reachable node:"<<node<<",cost:"<<main_dijkstra_alg->get_cost(node)<<endl;
+    }
+  }
+  cout<<"Reachable nodes:"<<reachable_nodes<<endl;
+  
   //CHECK destinations are reachable
   for (auto destination : Destinations){
     if(!main_dijkstra_alg->is_node_reachable(destination)){
@@ -742,21 +1045,21 @@ void create_grid_nodes_and_edges_from_SaT_file(){
       if(dest==dest2)
 	continue;
 
+      BasePath* result = Dijkstra_algs_dest_to_dest[dest].get_shortest_path(
+	  current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(Destinations[dest2]));
       //BasePath* result = Dijkstra_algs_dest_to_dest[dest].get_shortest_path(
-	//  current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(Destinations[dest2]));
-      //BasePath* result = Dijkstra_algs_dest_to_dest[dest].get_shortest_path(
-//	  current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(25157));
+	  //current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), current_graph_dest_to_dest[dest].get_vertex(25157));
       //cout<<"\t"<<result->get_path_string()<<",Weight:"<<result->Weight()<<endl;
-      //cout<<"\tdest_to_dest,dest1:,"<<Destinations[dest]<<",dest2:"<<Destinations[dest2]<<",Weight:"<<result->Weight()<<",length:"<<result->length()<<endl;
+      cout<<"\tdest_to_dest,dest1:,"<<Destinations[dest]<<",dest2:"<<Destinations[dest2]<<",Weight:"<<result->Weight()<<",length:"<<result->length()<<endl;
       //BasePath* main_result1 = main_dijkstra_alg->get_shortest_path(
 //	  main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]));
   //    cout<<"\torig_to_dest1,start:,"<<start<<",dest2:"<<Destinations[dest]<<",Weight:"<<main_result1->Weight()<<",length:"<<main_result1->length()<<endl;
     //  BasePath* main_result2 = main_dijkstra_alg->get_shortest_path(
 //	  main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest2]));
   //    cout<<"\torig_to_dest2,start:,"<<start<<",dest2:"<<Destinations[dest2]<<",Weight:"<<main_result2->Weight()<<",length:"<<main_result2->length()<<endl;
-
       
     }
+    //exit(1);
   }
 }
 //The following is the algorithm to create a new graph, called NewGraph from now on, that is shaped to take into account the effects of partial observability on the connectivity of the nodes in the original graph.
@@ -1951,12 +2254,16 @@ int main(int argc, char* argv[])
   bool optimize_observer=false;
   bool optimize_budget=false;
   bool SaT_map=false;
+  bool AugGraph=false;
     
   vector<vector<Link> > grid_vect_orig_dest;
   vector<vector<Link> > grid_vect_dest_to_dest;
 
   for(int i=0;i<argc;i++){
     std::string action(argv[i]);
+    if(action=="AG"){
+      AugGraph=true;
+    }
     if(action=="debug"){
       debug=true;
     }
@@ -2113,7 +2420,12 @@ int main(int argc, char* argv[])
     }
   }
   else if(SaT_map==true){
-    create_grid_nodes_and_edges_from_SaT_file();
+	  if(AugGraph){
+		  create_create_augmented_graph_from_SaT_file();
+	  }
+	  else{ 
+		  create_grid_nodes_and_edges_from_SaT_file();
+	  }
     //exit(1);
   }
   else{
@@ -2345,6 +2657,28 @@ int main(int argc, char* argv[])
 	    Dijkstra_algs[dest].determine_all_shortest_paths(current_graph[dest].get_vertex(Destinations[dest]),input_lambda);
 	    Dijkstra_algs[dest].get_perim_nodes(&perimeter_nodes_vect[dest],input_lambda);
 	    Dijkstra_algs[dest].get_perim_nodes(&neighourhood_nodes_vect[dest],0);
+		//STOCASTIC CODE
+		int reachable_nodes=0;
+		for(auto node : nodes_set){
+			if(!main_dijkstra_alg->is_node_reachable(node)){
+				//cout<<"node "<<node<<" is not reachable from start"<<endl;
+				continue;
+			}
+			else{
+				reachable_nodes++;
+				auto cost_to_dest=Dijkstra_algs[0].get_cost(node);
+				if(cost_to_dest==0){
+					continue;
+				}
+				//cout<<"reachable node:"<<node<<",cost to destination:"<<Dijkstra_algs[0].get_cost(node)<<endl;
+			//Feasible analysis, for now initial cost of all nodes is 0
+			//auto budget=40;
+			
+			//cout<<"\t feasible for budget=40"<<endl;
+			}
+		}
+		cout<<"Reachable nodes:"<<reachable_nodes<<endl;
+		exit(1);
 	    //cout<<FOREGRN<<RESETTEXT<<"Dest["<<Destinations[dest]<<"],Nd:";
 	    cout<<"Dest["<<Destinations[dest]<<"],Nd_size:"<<perimeter_nodes_vect[dest].size()<<endl;
 	    /*for(auto it : perimeter_nodes_vect[dest]){
@@ -3055,3 +3389,4 @@ int main(int argc, char* argv[])
 	  int t_max=optimizing_target_goal_dist(PM);
 	  optimizing_observer(&PM_orig,nodes,t_max);
 }
+

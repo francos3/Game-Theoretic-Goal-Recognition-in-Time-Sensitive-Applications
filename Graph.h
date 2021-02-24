@@ -121,6 +121,7 @@ class PathMatrix
   void add_paths_set(shared_ptr<set<vector<int>,vect_comp_int > > destination_paths,int dest);
   void eliminate_paths_C();
   void print_paths();
+  //void get_cost(int node);
   void record_initial_paths_gperf();
   void record_initial_paths();
   void record_best_solution();

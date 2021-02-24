@@ -85,7 +85,7 @@ void DijkstraShortestPathAlg::determine_all_shortest_paths( BaseVertex* source, 
   vector<BaseVertex*> temp_list;temp_list.push_back(source);
   m_mpPerimPaths[source->getID()]=make_shared<BasePath>(temp_list,0);
 
-  //cout<<"determine_all_shortest_paths,souce:"<<source->getID()<<",lambda_limit:"<<lambda_limit<<flush<<endl;
+  cout<<"determine_all_shortest_paths,souce:"<<source->getID()<<",lambda_limit:"<<lambda_limit<<flush<<endl;
 	//1. clear the intermediate variables
 	clear();
 
@@ -140,6 +140,7 @@ void DijkstraShortestPathAlg::determine_all_shortest_paths( BaseVertex* source, 
 		    cout<<","<<x.second<<endl;
 		  //}*/
 		}
+		//cout<<"All paths:"<<endl;
 		//print_paths();
 		//for(auto it : m_mpPerimPaths){
 		//  cout<<"\t\tPerimNode:"<<it.first<<",OP->";it.second->PrintOut(cout);
@@ -587,10 +588,20 @@ bool DijkstraShortestPathAlg::is_node_reachable(int sink){
   }
   return false;
 }
+//Cost from start to node
+double DijkstraShortestPathAlg::get_cost(int sink){
+  if(m_mpPerimPaths.find(sink)!=m_mpPerimPaths.end()){
+    return m_mpPerimPaths[sink]->Weight();
+  }
+  else{
+    //cout<<"node:"<<sink<<" has no associated cost from start, returning 0"<<endl;
+    return 0;
+  }
+}
 void DijkstraShortestPathAlg::print_perim_paths(){
   for (auto path : m_mpPerimPaths){
-	//std::map<int,shared_ptr<BasePath> > m_mpPerimPaths;
-    //cout<<"\t\tperim_path,sink:"<<path.first<<",source:"<<path.second->get_node(0)<<endl;
+	std::map<int,shared_ptr<BasePath> > m_mpPerimPaths;
+    cout<<"\t\tperim_path,sink:"<<path.first<<",source:"<<path.second->get_node(0)<<endl;
   }
 }
 
@@ -612,3 +623,23 @@ void DijkstraShortestPathAlg::populate_final_paths(set<BasePath> *Final_paths){
 void DijkstraShortestPathAlg::dump_edges(){
   m_pDirectGraph->dump_edges();
 }
+//def stuck(x)
+//   if x == t
+//     return False
+//   for each neighbor y of x
+//     if y not in seen
+//       insert y in seen
+//       if !stuck(y)
+//         return False
+//   return True
+
+//def search(x)
+//  if x == t
+//    print path
+//  seen = set(path)
+//  if stuck(x)
+//    return
+//  for each neighbor y of x
+//    push y on the path
+//    search(y)
+//    pop y from the path
