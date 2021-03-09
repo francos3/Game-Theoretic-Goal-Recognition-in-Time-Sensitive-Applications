@@ -96,6 +96,8 @@ bool create_PO_graph=false;
 int PO_level=100;
 unordered_set<int> FO_nodes;
 
+vector<map<pair<pair<int,float>,pair<int,float> >,float> > Alpha;
+
 template<typename S>
 auto select_random(const S &s, size_t n) {
   auto it = std::begin(s);
@@ -547,7 +549,7 @@ void random_orig_and_dest_placement_SaT(){
   }
   cout<<endl;
 }
-void create_create_augmented_graph_from_SaT_file(){//
+void create_augmented_graph_from_SaT_file(){//
   cout<<"hello create_augmented_graph,stocastic GO"<<flush<<endl;
   std::ifstream in(input_filename.c_str());
   std::ifstream in2(input_filename.c_str());
@@ -788,11 +790,29 @@ void create_create_augmented_graph_from_SaT_file(){//
 		}
 	}
   }
+
   //Dijkstra_algs[0].print_perim_paths();
 
 //NOW CREATE AUGMENTED GRAPH
 //GIVEN BUDGET C
 //ORIGIN Note IS (Orig,0)
+  main_dijkstra_alg->origin=main_graph.get_vertex(start);
+  for(auto dest : Destinations){ 
+	  main_dijkstra_alg->Destinations.insert(dest); 
+	  }
+  for(size_t dest=0;dest<Destinations.size();dest++){
+	//cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
+	main_dijkstra_alg->createAG(main_graph.get_vertex(start),main_graph.get_vertex(Destinations[dest]),1000.0);
+  }
+  main_dijkstra_alg->printAGFile();
+  main_dijkstra_alg->populateAGnodes();
+
+  double Budget=INT_MAX;
+  calculate_min_path_strategy_AG();
+  simulation();
+
+
+
 //A valid edge from (s,s',C) IS ALL STATES SUCH THAT
 //1) Exists a dest s.t. cost(s)+delta(s,d)<C and
 //2) Exists a dest s.t. cost(s)+W(s,s')+delta(s',d)<=C and 
@@ -834,6 +854,103 @@ void create_create_augmented_graph_from_SaT_file(){//
 //are called augmented destinations and are instead sinks. By construction there
 //are no other sinks in the graph. We drop the budget indication C in the various
 //quantities, whenever this does not create ambiguity.
+
+}
+void calculate_min_path_strategy_AG(){
+	cout<<"hola calculate_min_path_strategy"<<endl;
+	//Initialize Alpha
+	Alpha.clear();
+	map<pair<pair<int,float>, pair<int,float> >,float> temp_map;
+	Alpha.assign(Destinations.size(),temp_map);
+	//auto orig_node=main_graph.get_vertex(start);
+
+
+  auto AG_Nodes=main_dijkstra_alg->getAGNodes();
+  auto AG_Edges=main_dijkstra_alg->getAGEdges();
+  cout<<"AG_Edges.size:"<<AG_Edges->size()<<endl;
+
+  for(size_t dest=0;dest<Destinations.size();dest++){
+	  cout<<"\tworking on dest:,"<<Destinations[dest]<<endl;
+	for (auto node : *AG_Nodes){
+		double OptPaths=0;
+		auto orig_vertex=main_graph.get_vertex(node.first->getID());
+		cout<<"\t\torig_vertex:"<<orig_vertex->getID();
+		cout<<",Edges size:"<<(*AG_Edges)[orig_vertex->getID()].size()<<endl;
+
+
+		for (auto child_node : (*AG_Edges)[orig_vertex->getID()]){
+			cout<<"\t\t\tchild_node:,"<<child_node<<endl;
+			auto dest_vertex=main_graph.get_vertex(child_node);
+			cout<<"\t\tcost="<<node.second<<"+"<<main_graph.get_edge_weight(orig_vertex,dest_vertex);
+			cout<<"+"<<Dijkstra_algs_dest_to_dest[dest].get_cost(child_node)<<endl;
+			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
+				double cost=x+Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
+				//Probability is 0 if path is not optimal
+				cout<<"\t\t\tcost:"<<cost<<",optimal_cost:"<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+				if(cost>main_dijkstra_alg->get_cost(Destinations[dest])){
+					cout<<"\t\t\tpath is not optimal"<<endl;
+					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
+					//make_pair(child_node,x))]=0;
+				}
+				else{
+					cout<<"\t\t\tpath is optimal"<<endl;
+					Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
+					make_pair(child_node,x))]=1.0;
+					OptPaths++;
+				}
+			}
+
+		//Second pass to rationalize probabilities
+		for (auto child_node : (*AG_Edges)[orig_vertex->getID()]){
+			auto dest_vertex=main_graph.get_vertex(child_node);
+			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
+			
+			if(Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
+					make_pair(child_node,x))]>0){
+					Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
+					make_pair(child_node,x))]=1.0/OptPaths;
+			}
+			cout<<"Alpha["<<dest<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
+			cout<<","<<x<<")]:"<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
+		}
+	}
+  }
+}
+
+void simulation(){
+    auto AG_Edges=main_dijkstra_alg->getAGEdges();
+	//1st choose Destination
+	int dest=rand()%Destinations.size();
+	int d=Destinations[dest];
+	cout<<"destination:"<<d<<endl;
+	int current_node=start;
+	float r;
+	int counter=0;
+	float cost1=0;
+	while(true){
+		r = ((float) rand() / (RAND_MAX));
+		float select_prob=0;
+		for (auto dest_node : (*AG_Edges)[current_node]){
+			auto current_vertex=main_graph.get_vertex(current_node);
+			auto dest_vertex=main_graph.get_vertex(dest_node);
+		    float cost2=cost1+main_graph.get_edge_weight(current_vertex,dest_vertex);
+			auto key=make_pair(make_pair(current_node,cost1),make_pair(dest_node,cost2));
+			select_prob+=Alpha[dest][key];
+			//cout<<"Alpha["<<dest<<"]["<<current_node<<"->"<<dest_node<<"]:"<<Alpha[dest][make_pair(current_node,dest_node)]<<endl;
+			cout<<"random_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
+			if(r<=select_prob){//
+				current_node=dest_node;
+				cost1=cost2;
+				cout<<"\tchild is chosen,new current node:"<<current_node<<endl;
+				if(current_node==Destinations[dest]){
+					cout<<"Finished, destination found"<<endl;
+					return;
+				}
+				break;
+			}
+		}
+
+	}
 
 }
 
@@ -2421,7 +2538,7 @@ int main(int argc, char* argv[])
   }
   else if(SaT_map==true){
 	  if(AugGraph){
-		  create_create_augmented_graph_from_SaT_file();
+		  create_augmented_graph_from_SaT_file();
 	  }
 	  else{ 
 		  create_grid_nodes_and_edges_from_SaT_file();

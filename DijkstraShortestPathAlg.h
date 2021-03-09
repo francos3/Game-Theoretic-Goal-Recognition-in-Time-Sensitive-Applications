@@ -14,6 +14,7 @@
 #pragma once
 
 using namespace std;
+#include <stack>
 
 class DijkstraShortestPathAlg
 {
@@ -23,6 +24,9 @@ private: // members
 
 	std::map<BaseVertex*, double> m_mpStartDistanceIndex; 
 	std::map<BaseVertex*, BaseVertex*> m_mpPredecessorVertex; 
+	
+	std::map<int, std::set<int> > AG_Edges;
+	std::map<int,set<int>> AG_Node_list;
 
 	std::set<int> m_stDeterminedVertices;
 	
@@ -31,13 +35,29 @@ private: // members
 	std::map<int,shared_ptr<BasePath> > m_mpPerimPaths;
 	std::map<int,shared_ptr<BasePath> > m_mpFullPaths;
 	std::set<int> forbidden_nodes;
+    std::vector<BaseVertex*> AGpath;
+    std::set<int> AGseen;
 	
 public:
+	BaseVertex* origin;
+	set<int> Destinations;
+    std::set<std::vector<BaseVertex*> > AGpaths;
+    std::set<pair<BaseVertex*,double> > AGnodes;
+	
 	DijkstraShortestPathAlg(Graph* pGraph):m_pDirectGraph(pGraph){}
 	~DijkstraShortestPathAlg(void){clear();}
 	DijkstraShortestPathAlg();
 
 	void clear();
+
+	std::shared_ptr<set<pair<BaseVertex*,double> > > getAGNodes(){
+		auto ptr=make_shared<std::set<pair<BaseVertex*,double> > >(AGnodes);
+		return ptr;
+	}
+	std::shared_ptr<std::map<int,std::set<int> > > getAGEdges(){
+		auto ptr=make_shared<std::map<int,std::set<int> > > (AG_Edges);
+		return ptr;
+	}
 
 	BasePath* get_shortest_path(BaseVertex* source, BaseVertex* sink);
 	std::shared_ptr<BasePath> get_shortest_path2(BaseVertex* source, BaseVertex* sink);
@@ -82,12 +102,16 @@ public:
 	double get_cost(int sink);
 	int get_perim_size();
 	void improve_distances(unordered_set<int> *FO_nodes, vector<Link> *FO_edges,unordered_map<pair<int,int>,float,hash_pair> *best_d);
+	void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX);
+    void printAGFile();
+    //void calculateMinPathStrategy();
+	void populateAGnodes();
 protected:
+	bool stuck( BaseVertex* source, BaseVertex* sink);
 
 	void determine_shortest_paths(BaseVertex* source, BaseVertex* sink, bool is_source2sink);
 
 	void improve2vertex(BaseVertex* cur_vertex_pt, bool is_source2sink, float lambda_limit=INT_MAX);
 	void improve2vertexKeepPaths( BaseVertex* cur_vertex_pt, bool is_source2sink, float lambda_limit );
 	void add_full_paths(std::map<int,BasePath*> origin_optimal_paths);
-
 };

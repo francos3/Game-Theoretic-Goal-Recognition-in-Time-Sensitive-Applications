@@ -60,5 +60,7 @@ struct hash_pair {
         return hash1 ^ hash2; 
     } 
 };
+void calculate_min_path_strategy_AG();
+void simulation();
 
 #endif

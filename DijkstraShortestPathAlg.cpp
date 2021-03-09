@@ -17,6 +17,8 @@
 #include "GraphElements.h"
 #include "Graph.h"
 #include "DijkstraShortestPathAlg.h"
+#include <iostream>
+#include <fstream>
 BasePath* DijkstraShortestPathAlg::get_shortest_path( BaseVertex* source, BaseVertex* sink )
 {
 
@@ -623,6 +625,158 @@ void DijkstraShortestPathAlg::populate_final_paths(set<BasePath> *Final_paths){
 void DijkstraShortestPathAlg::dump_edges(){
   m_pDirectGraph->dump_edges();
 }
+
+void DijkstraShortestPathAlg::populateAGnodes(){
+  AGnodes.clear();
+  AGnodes.insert(make_pair(origin,0.0));
+  for (auto path : AGpaths){
+	  double cost=0;
+	for (size_t node=1;node<path.size()-1;node++){
+		cost+=m_pDirectGraph->get_edge_weight(path[node-1],path[node]);
+		AGnodes.insert(make_pair(path[node],cost));
+		cout<<"AG_Node:"<<path[node]->getID()<<",cost:"<<cost<<endl;
+	}
+  }
+  for (auto AGnode : AGnodes){
+	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+	m_pDirectGraph->get_adjacent_vertices(AGnode.first, *neighbor_vertex_list_pt);
+	set<int> edges;
+	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
+		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
+		edges.insert((*cur_neighbor_pos)->getID());
+		}
+	AG_Edges[AGnode.first->getID()]=edges;
+	cout<<"AG_Edges["<<AGnode.first->getID()<<"]:"<<AG_Edges[AGnode.first->getID()]<<endl;
+		/*double OptCost=0;
+		double OptPaths=0;
+	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+	m_pDirectGraph->get_adjacent_vertices(AGnode.first, *neighbor_vertex_list_pt);
+	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
+		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
+			double x=m_pDirectGraph->get_edge_weight(AGnode.first, *cur_neighbor_pos) +
+			AGnode.second;
+			double cost=x+
+		}*/
+  }
+	
+}
+
+void DijkstraShortestPathAlg::printAGFile(){
+	set<pair<pair<int,int>,pair<int,int> > > seen;
+  ofstream myfile ("AG.dot");
+  if (myfile.is_open())
+  {
+    myfile << "digraph finite_state_machine {"<<endl;
+    myfile << "rankdir=BT"<<endl;
+	myfile<<"node [shape = square,fillcolor=green,style=filled];";
+	myfile<<"\"("<<origin->getID()<<",0)\";"<<endl;
+	myfile<<"node [shape = circle,fillcolor=white,style=filled];"<<endl;
+
+  }
+  else{ 
+	  cerr << "Unable to open file"; 
+	  return;
+  }
+	for(auto path : AGpaths){
+		double distance1=0;
+		for(size_t i=1;i<path.size();i++){
+			auto n1=make_pair(path[i-1]->getID(),distance1);
+			auto distance2=distance1+m_pDirectGraph->get_edge_weight(path[i-1], path[i]); 
+			auto n2=make_pair(path[i]->getID(),distance2);
+			auto edge=make_pair(n1,n2);
+			if(seen.find(edge)!=seen.end()){
+				distance1=distance2;
+				continue;//edge is already known
+			}
+			seen.insert(edge);
+			if(Destinations.find(path[i]->getID())!=Destinations.end()){
+				myfile<<"node [shape = doublecircle,fillcolor=red,style=filled];";
+				//myfile<<"\"("<<path[i]->getID()<<","<<distance2<<")\";"<<endl;
+				myfile<<path[i]->getID()<<";"<<endl;
+				myfile<<"node [shape = circle,fillcolor=white,style=filled];"<<endl;
+			}
+
+			myfile<<"\"("<<path[i-1]->getID();
+			myfile<<","<<distance1<<")\"";
+			myfile<<" -> ";
+			if(Destinations.find(path[i]->getID())==Destinations.end()){
+				myfile<<"\"("<<path[i]->getID();
+				myfile<<","<<distance2<<")\"";
+				myfile<<endl;
+			}
+			else{
+				myfile<<path[i]->getID()<<endl;
+			}
+			distance1=distance2;
+		}
+	}
+	myfile<<"}"<<endl;
+    myfile.close();
+}
+void DijkstraShortestPathAlg::createAG( BaseVertex* source, BaseVertex* sink, float Budget){
+	//cout<<"AG,source:,"<<source->getID()<<",sink:,"<<sink->getID()<<endl;
+	if(AGpath.size()==0){
+		AGpath.push_back(origin);
+	}
+	if(source->getID()==sink->getID()){
+		cout<<"path found:,";
+		for(size_t i=0;i<AGpath.size();i++){
+			cout<<AGpath[i]->getID()<<",";
+			//cout<<"-"<<AGpath[i]->Weight()<<"],";
+		}
+		cout<<endl;
+		/*cout<<"seen:,";
+		for(auto element : AGseen){
+			cout<<element<<",";
+		}
+		cout<<endl;*/
+		//Add to list of paths
+		AGpaths.insert(AGpath);
+		return;
+	}
+
+    AGseen.clear();
+    for (auto element : AGpath){
+		AGseen.insert(element->getID());
+	}
+
+	if(stuck(source,sink)){
+		//cout<<"stuck, returning"<<endl;
+		return;
+	}
+		
+	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+	m_pDirectGraph->get_adjacent_vertices(source, *neighbor_vertex_list_pt);
+	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
+		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
+			//cout<<"\tworking on source:"<<source->getID();
+			//cout<<",source weight:"<<source->Weight()<<endl;
+			//double distance=source->Weight();
+		    //distance += m_pDirectGraph->get_edge_weight(source, *cur_neighbor_pos); 
+			//(*cur_neighbor_pos)->Weight(distance);
+			//cout<<"\t\tworking on child:"<<(*cur_neighbor_pos)->getID()<<",weight:"<<(*cur_neighbor_pos)->Weight()<<endl;
+			AGpath.push_back(*cur_neighbor_pos);
+			createAG(*cur_neighbor_pos,sink,Budget);
+			AGpath.pop_back();
+		}
+}
+bool DijkstraShortestPathAlg::stuck( BaseVertex *source,BaseVertex *sink){
+	if(source->getID()==sink->getID()){
+		return false;
+	}
+	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+	m_pDirectGraph->get_adjacent_vertices(source, *neighbor_vertex_list_pt);
+	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
+		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
+			if(AGseen.find((*cur_neighbor_pos)->getID())==AGseen.end()){
+				AGseen.insert((*cur_neighbor_pos)->getID());
+				if(not (stuck(*cur_neighbor_pos,sink))){
+					return false;
+				}
+			}
+		}
+		return true;
+}
 //def stuck(x)
 //   if x == t
 //     return False
@@ -643,3 +797,167 @@ void DijkstraShortestPathAlg::dump_edges(){
 //    push y on the path
 //    search(y)
 //    pop y from the path
+
+
+
+//void DijkstraShortestPathAlg::create_ag( BaseVertex* source, float Budget)
+//{
+//	map<int,int> parent_list;	
+
+//			      
+//  cout<<"create AG,souce:"<<source->getID()<<",Budget:"<<Budget<<flush<<endl;
+//  //1. clear the intermediate variables
+//    clear();
+//
+//	//2. initiate the local variables
+//	BaseVertex* start_vertex = source;
+//	//m_mpStartDistanceIndex[start_vertex] = 0;
+//	//auto best_distances= m_mpStartDistanceIndex;
+//	start_vertex->Weight(0);
+//	m_quCandidateVertices.insert(start_vertex);
+//	//cout<<"before while"<<flush<<endl;
+//
+	//3. keep generating nodes until full AG finished
+//	while (!m_quCandidateVertices.empty())
+//	{
+//		//3.0 pop node
+//		multiset<BaseVertex*, WeightLess<BaseVertex> >::const_iterator pos = m_quCandidateVertices.begin();
+//		BaseVertex* cur_vertex_pt = *pos; //m_quCandidateVertices.top();
+//		cout<<"\tcur_vertex_pt:"<<cur_vertex_pt->getID()<<",source,:"<<source->getID()<<endl;
+//		m_quCandidateVertices.erase(pos);
+
+		//3.1 Expand node
+//		set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+//		m_pDirectGraph->get_adjacent_vertices(cur_vertex_pt, *neighbor_vertex_list_pt);
+//		m_pDirectGraph->get_adjacent_vertices(cur_vertex_pt, *neighbor_adjacent_vertex_list_pt);
+//	}/
+//}
+//void DijkstraShortestPathAlg::CreateAGNeighours( BaseVertex* cur_vertex_pt, float Budget )
+//{
+//	// 1. get the neighboring vertices 
+//	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
+//		
+//	//cout<<"getting neighours"<<endl;
+//	m_pDirectGraph->get_adjacent_vertices(cur_vertex_pt, *neighbor_vertex_list_pt);
+//	
+//	/*set<BaseVertex*>* neighbor_adjacent_vertex_list_pt = new set<BaseVertex*>();
+//	m_pDirectGraph->get_adjacent_vertices(cur_vertex_pt, *neighbor_adjacent_vertex_list_pt);
+//	cout<<"\t\t\tneighours_adjacent:"<<neighbor_adjacent_vertex_list_pt->size()<<endl;//exit(1);
+//	set<BaseVertex*>* neighbor_precedent_vertex_list_pt = new set<BaseVertex*>();
+//	m_pDirectGraph->get_precedent_vertices(cur_vertex_pt, *neighbor_precedent_vertex_list_pt);
+//	cout<<"\t\t\tneighours_precedent:"<<neighbor_precedent_vertex_list_pt->size()<<endl;//exit(1);*/
+//
+//	// 2. update the distance passing on the current vertex
+//	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
+//		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos)
+//	{
+//		//2.1 skip if there is a cycle
+//		if (m_stDeterminedVertices.find((*cur_neighbor_pos)->getID())!=m_stDeterminedVertices.end())
+//		{
+//		  //cout<<"\t\t skipping visited vertex:"<<(*cur_neighbor_pos)->getID()<<endl;
+//			continue;
+//		}
+//
+//		//2.2 calculate the distance
+//		map<BaseVertex*, double>::const_iterator cur_pos = m_mpStartDistanceIndex.find(cur_vertex_pt);
+//		double distance =  cur_pos != m_mpStartDistanceIndex.end() ? cur_pos->second : Graph::DISCONNECT;
+//		//if(cur_vertex_pt->getID()==84){
+//		 // cout<<"cur_vertex:,"<<cur_vertex_pt->getID()<<",parent distance is:"<<distance<<",lambda_limit:"<<lambda_limit<<endl;
+//		//}
+//		//cout<<"cur_vertex:,"<<cur_vertex_pt->getID()<<",distance is:"<<distance<<",lambda_limit:"<<lambda_limit<<endl;
+//		if(distance>=lambda_limit&&lambda_limit!=-1){
+//		  //cout<<"cur_vertex:,"<<cur_vertex_pt->getID()<<",distance is:"<<distance<<",lambda_limit:"<<lambda_limit<<",continue"<<endl;
+//		  continue;
+//		}
+//
+//		//cout<<"\t\tcur_pos:"<<(cur_pos->first)->getID()<<",cur_distance:"<<distance<<endl;
+//		distance += m_pDirectGraph->get_edge_weight(cur_vertex_pt, *cur_neighbor_pos); 
+//		/*if((*cur_neighbor_pos)->getID()==84){
+//		  cout<<"\t\t\toption 1:"<<m_pDirectGraph->get_edge_weight(cur_vertex_pt, *cur_neighbor_pos)<<",from:,"<<cur_vertex_pt->getID()<<",to:,"<<(*cur_neighbor_pos)->getID()<<",code:,"<<m_pDirectGraph->get_edge_code(cur_vertex_pt,*cur_neighbor_pos )<<endl;
+//		  cout<<"\t\t\toption 2:"<<m_pDirectGraph->get_edge_weight(*cur_neighbor_pos, cur_vertex_pt)<<",from:,"<<(*cur_neighbor_pos)->getID()<<",to:,"<<cur_vertex_pt->getID()<<endl;
+//		  cout<<"\t\t\tupdated distance:"<<distance<<endl;
+//		}*/
+//
+//
+//
+//		//2.3 check if AG node is duplicate, AG nodes are only duplicate if they have exactly the same distance
+//		cur_pos = m_mpStartDistanceIndex.find(*cur_neighbor_pos);
+//		int id=(*cur_neighbor_pos)->getID();
+//		if(AG_Node_list.find(id)!=AG_Node_list.end()){
+//			if(AG_Node_list[id].find(distance)){//We have a duplicate ag Node
+//				continue;
+//			}
+//		}
+//
+//
+//
+//		if (cur_pos == m_mpStartDistanceIndex.end() || cur_pos->second > distance)
+//		{
+//			m_mpStartDistanceIndex[*cur_neighbor_pos] = distance;
+//			//cout<<"\tcur_neighours:,"<<(*cur_neighbor_pos)->getID()<<",distance:,"<<distance<<",m_mpStartDistanceIndex.size:,"<<m_mpStartDistanceIndex.size()<<endl;
+//			m_mpPredecessorVertex[*cur_neighbor_pos] = cur_vertex_pt;
+//
+//			//if(distance>=lambda_limit||lambda_limit!=-1){
+//			//KEEP PATHS
+//			  BaseVertex* cur_vertex_pt2 = *cur_neighbor_pos; //m_quCandidateVertices.top();
+//			  std::vector<BaseVertex*> vertex_list;
+//			  do 
+//			  {
+//			
+//			    if(lambda_limit==-1){//regular order, origin to perimeter node
+//			      vertex_list.insert(vertex_list.begin(), cur_vertex_pt2);
+//			    }
+//			    else{//reverse order, perimeter to destination
+//				  vertex_list.push_back(cur_vertex_pt2);
+//			    }
+//
+//				  std::map<BaseVertex*, BaseVertex*>::const_iterator pre_pos = 
+//					  m_mpPredecessorVertex.find(cur_vertex_pt2);
+//
+//				  if (pre_pos == m_mpPredecessorVertex.end()) break;
+//
+//				  cur_vertex_pt2 = pre_pos->second;
+//
+//			  } while (cur_vertex_pt2 != current_source);
+//			    if(lambda_limit==-1){//regular order, origin to perimeter node
+//			      vertex_list.insert(vertex_list.begin(), current_source);
+//			      //cout<<"\t\tvertex:"<<vertex_list.back()->getID()<<",weight1:"<<distance;
+//			      m_mpPerimPaths[vertex_list.back()->getID()]=make_shared<BasePath>(vertex_list,distance);
+//			      //cout<<",distance2="<<m_mpPerimPaths[vertex_list.back()->getID()]->Weight()<<endl;
+//			      /*if(vertex_list.back()->getID()==84){
+//				cout<<"84,\t\tvertex:"<<vertex_list.back()->getID()<<",weight1:"<<distance<<endl;
+//				cout<<"84,,distance2="<<m_mpPerimPaths[vertex_list.back()->getID()]->Weight()<<endl;
+//			      }*/
+//			    }
+//			    else{
+//			      vertex_list.push_back(current_source);
+//			      //cout<<"\t\tvertex:"<<vertex_list.front()->getID()<<",weight1:"<<distance;
+//			      m_mpPerimPaths[vertex_list.front()->getID()]=make_shared<BasePath>(vertex_list,distance);
+//			      //cout<<",distance2="<<m_mpPerimPaths[vertex_list.front()->getID()]->Weight()<<endl;
+//			      //cout<<"\t\t\t added "<<vertex_list.front()->getID()<<"to the list of perim nodes"<<endl;
+//			    }
+//			  //BasePath current_path(vertex_list,distance);
+//
+//
+//			  //for(auto vertex : vertex_list) cout<<vertex->getID()<<flush<<",";cout<<endl;//exit(0);
+//
+//			//}
+//			
+//			(*cur_neighbor_pos)->Weight(distance);
+//
+//			multiset<BaseVertex*, WeightLess<BaseVertex> >::const_iterator pos = m_quCandidateVertices.begin();
+//			for(; pos != m_quCandidateVertices.end(); ++pos)
+//			{
+//				if ((*pos)->getID() == (*cur_neighbor_pos)->getID())
+//				{
+//					break;
+//				}
+//			}
+//			if(pos != m_quCandidateVertices.end())
+//			{
+//				m_quCandidateVertices.erase(pos);
+//			}
+//			m_quCandidateVertices.insert(*cur_neighbor_pos);
+//		}
+//	}
+//}
