@@ -79,12 +79,16 @@ public:
 class BaseVertex
 {
 	int m_nID;
-	double m_dWeight;	
+	double m_dWeight;
+//	BaseVertex* parent;	
 
 public:
 
 	int getID() const { return m_nID; }
 	void setID(int ID_) { m_nID = ID_; }
+
+//	BaseVertex* getParent() const { return parent; }
+//	void setParent(BaseVertex* parent_) { parent = parent_; }
 
 	double Weight() const { return m_dWeight; }
 	void Weight(double val) { m_dWeight = val; }

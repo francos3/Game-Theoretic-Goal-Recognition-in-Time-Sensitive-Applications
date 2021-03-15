@@ -628,37 +628,34 @@ void DijkstraShortestPathAlg::dump_edges(){
 
 void DijkstraShortestPathAlg::populateAGnodes(){
   AGnodes.clear();
+  AG_subgraph.clear();
+  map<int,set<int> > temp;
+  AG_sg_edges.assign(Destinations.size(),temp);
   AGnodes.insert(make_pair(origin,0.0));
+  //Subgraphs share the initial node
+  AG_subgraph.assign(Destinations.size(),AGnodes);
+  cout<<"Destination_order:"<<Destinations_order<<endl;
   for (auto path : AGpaths){
 	  double cost=0;
-	for (size_t node=1;node<path.size()-1;node++){
+	  //Get destination order for main
+	  size_t dest=0;
+	  for(size_t i=0;i<=Destinations_order.size();i++){
+		  if(path.back()->getID()==Destinations_order[i]){
+			  dest=i;
+			  break;
+			  }
+			}
+	for (size_t node=1;node<path.size();node++){
 		cost+=m_pDirectGraph->get_edge_weight(path[node-1],path[node]);
 		AGnodes.insert(make_pair(path[node],cost));
+		AG_subgraph[dest].insert(make_pair(path[node],cost));
+		AG_Edges[path[node-1]->getID()].insert(path[node]->getID());
+		AG_sg_edges[dest][path[node-1]->getID()].insert(path[node]->getID());
 		cout<<"AG_Node:"<<path[node]->getID()<<",cost:"<<cost<<endl;
+		cout<<"AG_subgraph["<<dest<<"]:"<<path[node]->getID()<<",cost:"<<cost;
+		cout<<",Destination:"<<path.back()->getID()<<endl;
 	}
   }
-  for (auto AGnode : AGnodes){
-	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
-	m_pDirectGraph->get_adjacent_vertices(AGnode.first, *neighbor_vertex_list_pt);
-	set<int> edges;
-	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
-		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
-		edges.insert((*cur_neighbor_pos)->getID());
-		}
-	AG_Edges[AGnode.first->getID()]=edges;
-	cout<<"AG_Edges["<<AGnode.first->getID()<<"]:"<<AG_Edges[AGnode.first->getID()]<<endl;
-		/*double OptCost=0;
-		double OptPaths=0;
-	set<BaseVertex*>* neighbor_vertex_list_pt = new set<BaseVertex*>();
-	m_pDirectGraph->get_adjacent_vertices(AGnode.first, *neighbor_vertex_list_pt);
-	for(set<BaseVertex*>::iterator cur_neighbor_pos=neighbor_vertex_list_pt->begin(); 
-		cur_neighbor_pos!=neighbor_vertex_list_pt->end(); ++cur_neighbor_pos){
-			double x=m_pDirectGraph->get_edge_weight(AGnode.first, *cur_neighbor_pos) +
-			AGnode.second;
-			double cost=x+
-		}*/
-  }
-	
 }
 
 void DijkstraShortestPathAlg::printAGFile(){

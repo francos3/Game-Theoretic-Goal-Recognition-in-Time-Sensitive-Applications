@@ -797,6 +797,7 @@ void create_augmented_graph_from_SaT_file(){//
 //GIVEN BUDGET C
 //ORIGIN Note IS (Orig,0)
   main_dijkstra_alg->origin=main_graph.get_vertex(start);
+  main_dijkstra_alg->set_Destinations_Order(&Destinations);
   for(auto dest : Destinations){ 
 	  main_dijkstra_alg->Destinations.insert(dest); 
 	  }
@@ -809,6 +810,7 @@ void create_augmented_graph_from_SaT_file(){//
 
   double Budget=INT_MAX;
   calculate_min_path_strategy_AG();
+  //calculate_Gibbs_strategy_AG(0.5,10);
   simulation();
 
 
@@ -865,20 +867,20 @@ void calculate_min_path_strategy_AG(){
 	//auto orig_node=main_graph.get_vertex(start);
 
 
-  auto AG_Nodes=main_dijkstra_alg->getAGNodes();
-  auto AG_Edges=main_dijkstra_alg->getAGEdges();
-  cout<<"AG_Edges.size:"<<AG_Edges->size()<<endl;
+  auto AG_Nodes=main_dijkstra_alg->getAGsubgraphs();
+  auto AG_SG_Edges=main_dijkstra_alg->getSGEdges();
+  cout<<"AG_Edges.size:"<<AG_SG_Edges->size()<<endl;
 
   for(size_t dest=0;dest<Destinations.size();dest++){
 	  cout<<"\tworking on dest:,"<<Destinations[dest]<<endl;
-	for (auto node : *AG_Nodes){
+	for (auto node : (*AG_Nodes)[dest]){
 		double OptPaths=0;
 		auto orig_vertex=main_graph.get_vertex(node.first->getID());
 		cout<<"\t\torig_vertex:"<<orig_vertex->getID();
-		cout<<",Edges size:"<<(*AG_Edges)[orig_vertex->getID()].size()<<endl;
+		cout<<",Edges size:"<<(*AG_SG_Edges)[dest][orig_vertex->getID()].size()<<endl;
 
 
-		for (auto child_node : (*AG_Edges)[orig_vertex->getID()]){
+		for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()]){
 			cout<<"\t\t\tchild_node:,"<<child_node<<endl;
 			auto dest_vertex=main_graph.get_vertex(child_node);
 			cout<<"\t\tcost="<<node.second<<"+"<<main_graph.get_edge_weight(orig_vertex,dest_vertex);
@@ -901,7 +903,7 @@ void calculate_min_path_strategy_AG(){
 			}
 
 		//Second pass to rationalize probabilities
-		for (auto child_node : (*AG_Edges)[orig_vertex->getID()]){
+		for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()]){
 			auto dest_vertex=main_graph.get_vertex(child_node);
 			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
 			
@@ -910,19 +912,84 @@ void calculate_min_path_strategy_AG(){
 					Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
 					make_pair(child_node,x))]=1.0/OptPaths;
 			}
-			cout<<"Alpha["<<dest<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
+			cout<<"Alpha["<<Destinations[dest]<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
 			cout<<","<<x<<")]:"<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
+		}
+	}
+  }
+}
+void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
+	cout<<"hola calculate_Gibbs_strategy"<<endl;
+	//Initialize Alpha
+	Alpha.clear();
+	map<pair<pair<int,float>, pair<int,float> >,float> temp_map;
+	Alpha.assign(Destinations.size(),temp_map);
+	//auto orig_node=main_graph.get_vertex(start);
+
+
+  auto AG_Nodes=main_dijkstra_alg->getAGsubgraphs();
+  auto AG_SG_Edges=main_dijkstra_alg->getSGEdges();
+  cout<<"AG_Edges.size:"<<AG_SG_Edges->size()<<flush<<endl;
+
+  for(size_t dest=0;dest<Destinations.size();dest++){
+	  cout<<"\tworking on dest:,"<<Destinations[dest]<<endl;
+	for (auto node : (*AG_Nodes)[dest]){
+		double NormConst=0; 
+		auto orig_vertex=main_graph.get_vertex(node.first->getID());
+		cout<<"\t\torig_vertex:"<<orig_vertex->getID();
+		cout<<",Edges size:"<<(*AG_SG_Edges)[dest][orig_vertex->getID()].size()<<endl;
+
+
+		for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()]){
+			cout<<"\t\t\tchild_node:,"<<child_node<<endl;
+			auto dest_vertex=main_graph.get_vertex(child_node);
+			cout<<"\t\tcost="<<node.second<<"+"<<main_graph.get_edge_weight(orig_vertex,dest_vertex);
+			cout<<"+"<<Dijkstra_algs_dest_to_dest[dest].get_cost(child_node)<<endl;
+			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
+				double cost=x+Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
+				//Probability is 0 if path is not feasible
+				cout<<"\t\t\tcost:"<<cost<<",optimal_cost:"<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+				if(cost>Budget){
+					cout<<"\t\t\tpath is not feasible for budget:"<<Budget<<endl;
+					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
+					//make_pair(child_node,x))]=0;
+				}
+				else{
+					cout<<"\t\t\tpath is feasible"<<endl;
+					auto key=make_pair(make_pair(node.first->getID(),node.second),
+					make_pair(child_node,x));
+					double exponent=main_graph.get_edge_weight(orig_vertex,dest_vertex)+
+					Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
+					Alpha[dest][key]=exp(-beta*(exponent));
+					NormConst+=Alpha[dest][key];
+				}
+			}
+
+		//Second pass to rationalize probabilities
+		for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()]){
+			auto dest_vertex=main_graph.get_vertex(child_node);
+			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
+			auto key=make_pair(make_pair(node.first->getID(),node.second),
+					make_pair(child_node,x));
+			
+			if(Alpha[dest][key]>0){
+				Alpha[dest][key]=Alpha[dest][key]/NormConst;
+				cout<<"Alpha["<<Destinations[dest]<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
+				cout<<","<<x<<")]:"<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
+			}
 		}
 	}
   }
 }
 
 void simulation(){
-    auto AG_Edges=main_dijkstra_alg->getAGEdges();
+    auto AG_Edges=main_dijkstra_alg->getSGEdges();
 	//1st choose Destination
+	srand(random_seed);
 	int dest=rand()%Destinations.size();
 	int d=Destinations[dest];
-	cout<<"destination:"<<d<<endl;
+	cout<<endl<<"Simulation, randomly selected destination:"<<d<<endl;
+	cout<<"Simulated path:"<<start;
 	int current_node=start;
 	float r;
 	int counter=0;
@@ -930,26 +997,28 @@ void simulation(){
 	while(true){
 		r = ((float) rand() / (RAND_MAX));
 		float select_prob=0;
-		for (auto dest_node : (*AG_Edges)[current_node]){
+		for (auto dest_node : (*AG_Edges)[dest][current_node]){
 			auto current_vertex=main_graph.get_vertex(current_node);
 			auto dest_vertex=main_graph.get_vertex(dest_node);
 		    float cost2=cost1+main_graph.get_edge_weight(current_vertex,dest_vertex);
 			auto key=make_pair(make_pair(current_node,cost1),make_pair(dest_node,cost2));
 			select_prob+=Alpha[dest][key];
-			//cout<<"Alpha["<<dest<<"]["<<current_node<<"->"<<dest_node<<"]:"<<Alpha[dest][make_pair(current_node,dest_node)]<<endl;
-			cout<<"random_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
+			//cout<<"\tAlpha["<<Destinations[dest]<<",("<<current_node<<","<<cost1<<")->("<<dest_node;
+			//cout<<","<<cost2<<")]:"<<Alpha[dest][key];
+			//cout<<"\trandom_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
 			if(r<=select_prob){//
 				current_node=dest_node;
 				cost1=cost2;
-				cout<<"\tchild is chosen,new current node:"<<current_node<<endl;
+				//cout<<"\tchild is chosen,new current node:("<<current_node<<","<<cost2<<")"<<endl;
+				cout<<","<<current_node;
 				if(current_node==Destinations[dest]){
-					cout<<"Finished, destination found"<<endl;
+					//cout<<"Finished, destination found"<<endl;
+					cout<<endl;
 					return;
 				}
 				break;
 			}
 		}
-
 	}
 
 }

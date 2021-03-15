@@ -61,6 +61,7 @@ struct hash_pair {
     } 
 };
 void calculate_min_path_strategy_AG();
+void calculate_Gibbs_strategy_AG(double beta,double Budget);
 void simulation();
 
 #endif
