@@ -66,6 +66,8 @@ string input_filename="";
 map<int,int> dest_index;
 int connectivity=0;
 bool map_display=false;
+bool stocastic_go=false;
+int strategy=0;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256];//origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -773,6 +775,8 @@ void create_augmented_graph_from_SaT_file(){//
       
     }
   }
+
+  if(stocastic_go){
   //STOCASTIC CODE Example for dest[0]
   //Get all paths from dest[0]
   //Get distance from node v to destination
@@ -809,54 +813,15 @@ void create_augmented_graph_from_SaT_file(){//
   main_dijkstra_alg->populateAGnodes();
 
   double Budget=INT_MAX;
-  calculate_min_path_strategy_AG();
-  //calculate_Gibbs_strategy_AG(0.5,10);
+  if(strategy==0){
+    calculate_min_path_strategy_AG();
+  }
+  else{
+    calculate_Gibbs_strategy_AG(0.5,10);
+  }
   simulation();
-
-
-
-//A valid edge from (s,s',C) IS ALL STATES SUCH THAT
-//1) Exists a dest s.t. cost(s)+delta(s,d)<C and
-//2) Exists a dest s.t. cost(s)+W(s,s')+delta(s',d)<=C and 
-//3) CycleCheck: None of the ancestor edges are equal to s'
-
-//Algorithm:
-//Output: Edges and Nodes of Augmented Graph
-//0) Create origin node NO(Orig,0,NoParent)
-//2) Add NO to OpenList, fifo order
-//3) pop-node N1(state s, cost c1, node ParentNode)
-//4) ForAll s' ∈ children(s):
-//    5) If s' ∈ D:
-//        5a)Finished, add edge(s,s') and associated nodes to AugGraph; continue
-//    6) if not valid(2): continue;
-//    7) If not CycleCheck(s,ParentNode): continue;
-//    8) CreateNode N2(s',c1+W(s,s'),N1)
-//    9) CreateAugGraphEdge(N1,N2) and Nodes
-//    10) Add N2 to OpenList.
-
-//Algorithm:CycleCheck(state s1,ParentNode))
-//while(True):
-//   1)If ParentNode.state==Orig 
-//    return false
-//   2)else if ParentNode.State==s1
-//      return true
-//   3)ParentNode=ParentNode.ParentNode
-
-
-
-
-
-
   exit(0);
-
-//For every budget C and destination d, we can define an augmented directed
-//graph G (d) (C) having as set of nodes X (d) (C) and edges (s, s ′ ) such that s ∈(d)
-//X (d) (C) and s ′ ∈ N s (C). The state (o, 0) is called the augmented origin; it is
-//a source and typically is simply indicated as o. States of type (d, x) with d ∈ D
-//are called augmented destinations and are instead sinks. By construction there
-//are no other sinks in the graph. We drop the budget indication C in the various
-//quantities, whenever this does not create ambiguity.
-
+  }
 }
 void calculate_min_path_strategy_AG(){
 	cout<<"hola calculate_min_path_strategy"<<endl;
@@ -865,6 +830,9 @@ void calculate_min_path_strategy_AG(){
 	map<pair<pair<int,float>, pair<int,float> >,float> temp_map;
 	Alpha.assign(Destinations.size(),temp_map);
 	//auto orig_node=main_graph.get_vertex(start);
+	ofstream myfile;
+	string filename="RNG_N"+to_string(main_graph.getVertexNum())+"_S"+to_string(random_seed)+".txt";
+	myfile.open (filename);
 
 
   auto AG_Nodes=main_dijkstra_alg->getAGsubgraphs();
@@ -914,9 +882,12 @@ void calculate_min_path_strategy_AG(){
 			}
 			cout<<"Alpha["<<Destinations[dest]<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
 			cout<<","<<x<<")]:"<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
+			myfile<<Destinations[dest]<<","<<node.first->getID()<<","<<node.second<<","<<child_node;
+			myfile<<","<<x<<","<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
 		}
 	}
   }
+	myfile.close();
 }
 void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
 	cout<<"hola calculate_Gibbs_strategy"<<endl;
@@ -925,27 +896,31 @@ void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
 	map<pair<pair<int,float>, pair<int,float> >,float> temp_map;
 	Alpha.assign(Destinations.size(),temp_map);
 	//auto orig_node=main_graph.get_vertex(start);
+	ofstream myfile;
+	string filename="RNG_N"+to_string(main_graph.getVertexNum())+"_S"+to_string(random_seed)+".txt";
+	myfile.open (filename);
 
+	auto AG_Nodes = main_dijkstra_alg->getAGsubgraphs();
+	auto AG_SG_Edges = main_dijkstra_alg->getSGEdges();
+	cout << "AG_Edges.size:" << AG_SG_Edges->size() << flush << endl;
 
-  auto AG_Nodes=main_dijkstra_alg->getAGsubgraphs();
-  auto AG_SG_Edges=main_dijkstra_alg->getSGEdges();
-  cout<<"AG_Edges.size:"<<AG_SG_Edges->size()<<flush<<endl;
+	for (size_t dest = 0; dest < Destinations.size(); dest++)
+	{
+		cout << "\tworking on dest:," << Destinations[dest] << endl;
+		for (auto node : (*AG_Nodes)[dest])
+		{
+			double NormConst = 0;
+			auto orig_vertex = main_graph.get_vertex(node.first->getID());
+			cout << "\t\torig_vertex:" << orig_vertex->getID();
+			cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
 
-  for(size_t dest=0;dest<Destinations.size();dest++){
-	  cout<<"\tworking on dest:,"<<Destinations[dest]<<endl;
-	for (auto node : (*AG_Nodes)[dest]){
-		double NormConst=0; 
-		auto orig_vertex=main_graph.get_vertex(node.first->getID());
-		cout<<"\t\torig_vertex:"<<orig_vertex->getID();
-		cout<<",Edges size:"<<(*AG_SG_Edges)[dest][orig_vertex->getID()].size()<<endl;
-
-
-		for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()]){
-			cout<<"\t\t\tchild_node:,"<<child_node<<endl;
-			auto dest_vertex=main_graph.get_vertex(child_node);
-			cout<<"\t\tcost="<<node.second<<"+"<<main_graph.get_edge_weight(orig_vertex,dest_vertex);
-			cout<<"+"<<Dijkstra_algs_dest_to_dest[dest].get_cost(child_node)<<endl;
-			double x=node.second+main_graph.get_edge_weight(orig_vertex,dest_vertex);
+			for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()])
+			{
+				cout << "\t\t\tchild_node:," << child_node << endl;
+				auto dest_vertex = main_graph.get_vertex(child_node);
+				cout << "\t\tcost=" << node.second << "+" << main_graph.get_edge_weight(orig_vertex, dest_vertex);
+				cout << "+" << Dijkstra_algs_dest_to_dest[dest].get_cost(child_node) << endl;
+				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
 				double cost=x+Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
 				//Probability is 0 if path is not feasible
 				cout<<"\t\t\tcost:"<<cost<<",optimal_cost:"<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
@@ -976,10 +951,13 @@ void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
 				Alpha[dest][key]=Alpha[dest][key]/NormConst;
 				cout<<"Alpha["<<Destinations[dest]<<",("<<node.first->getID()<<","<<node.second<<")->("<<child_node;
 				cout<<","<<x<<")]:"<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
+				myfile<<Destinations[dest]<<","<<node.first->getID()<<","<<node.second<<","<<child_node;
+				myfile<<","<<x<<","<<Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),make_pair(child_node,x))]<<endl;
 			}
 		}
+		}
 	}
-  }
+	myfile.close();
 }
 
 void simulation(){
@@ -2464,6 +2442,10 @@ int main(int argc, char* argv[])
     if(action=="optimize_budget"){
       optimize_budget=true;
     }
+    if(action=="stocastic_go"){
+      optimize_budget=true;
+	  stocastic_go=true;
+    }
     if(action=="min_cal"){
       min_cal=true;
     }
@@ -2582,6 +2564,11 @@ int main(int argc, char* argv[])
       string temp=action.substr(2,action.length());
       N = stoi(temp);
       cout<<"N:"<<N<<endl;
+    }
+    if(action.find("Stg=")!=string::npos){
+      string temp=action.substr(4,action.length());
+      strategy = stoi(temp);
+      cout<<"strategy:"<<strategy<<",temp:"<<temp<<endl;
     }
   }
   int positions=N*N-1;
