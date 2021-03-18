@@ -68,6 +68,8 @@ int connectivity=0;
 bool map_display=false;
 bool stocastic_go=false;
 int strategy=0;
+double Budget=0;
+double Beta=0;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256];//origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -812,12 +814,11 @@ void create_augmented_graph_from_SaT_file(){//
   main_dijkstra_alg->printAGFile();
   main_dijkstra_alg->populateAGnodes();
 
-  double Budget=INT_MAX;
   if(strategy==0){
     calculate_min_path_strategy_AG();
   }
   else{
-    calculate_Gibbs_strategy_AG(0.5,10);
+    calculate_Gibbs_strategy_AG(Beta,Budget);
   }
   simulation();
   exit(0);
@@ -831,7 +832,7 @@ void calculate_min_path_strategy_AG(){
 	Alpha.assign(Destinations.size(),temp_map);
 	//auto orig_node=main_graph.get_vertex(start);
 	ofstream myfile;
-	string filename="RNG_N"+to_string(main_graph.getVertexNum())+"_S"+to_string(random_seed)+".txt";
+	string filename="AG"+to_string(main_graph.getVertexNum())+"_S"+to_string(random_seed)+".txt";
 	myfile.open (filename);
 
 
@@ -840,7 +841,11 @@ void calculate_min_path_strategy_AG(){
   cout<<"AG_Edges.size:"<<AG_SG_Edges->size()<<endl;
 
   for(size_t dest=0;dest<Destinations.size();dest++){
-	  cout<<"\tworking on dest:,"<<Destinations[dest]<<endl;
+	cout << "\tworking on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest])<< endl;
+	if(Budget<main_dijkstra_alg->get_cost(Destinations[dest])){
+		cerr<<"Budget is smaller than optimal distance from origin to destination!!!"<<endl;
+		exit(1);
+	}
 	for (auto node : (*AG_Nodes)[dest]){
 		double OptPaths=0;
 		auto orig_vertex=main_graph.get_vertex(node.first->getID());
@@ -889,8 +894,8 @@ void calculate_min_path_strategy_AG(){
   }
 	myfile.close();
 }
-void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
-	cout<<"hola calculate_Gibbs_strategy"<<endl;
+void calculate_Gibbs_strategy_AG(double beta=0.5,double budget=100){
+	cout<<"hola calculate_Gibbs_strategy,beta:"<<beta<<",Budget:"<<budget<<endl;
 	//Initialize Alpha
 	Alpha.clear();
 	map<pair<pair<int,float>, pair<int,float> >,float> temp_map;
@@ -906,7 +911,11 @@ void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
 
 	for (size_t dest = 0; dest < Destinations.size(); dest++)
 	{
-		cout << "\tworking on dest:," << Destinations[dest] << endl;
+		cout << "\tworking on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest])<< endl;
+		if(Budget<main_dijkstra_alg->get_cost(Destinations[dest])){
+			cerr<<"Budget is smaller than optimal distance from origin to destination!!!"<<endl;
+			exit(1);
+		}
 		for (auto node : (*AG_Nodes)[dest])
 		{
 			double NormConst = 0;
@@ -924,8 +933,8 @@ void calculate_Gibbs_strategy_AG(double beta=0.5,double Budget=100){
 				double cost=x+Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
 				//Probability is 0 if path is not feasible
 				cout<<"\t\t\tcost:"<<cost<<",optimal_cost:"<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
-				if(cost>Budget){
-					cout<<"\t\t\tpath is not feasible for budget:"<<Budget<<endl;
+				if(cost>budget){
+					cout<<"\t\t\tpath is not feasible for budget:"<<budget<<endl;
 					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
 					//make_pair(child_node,x))]=0;
 				}
@@ -972,6 +981,11 @@ void simulation(){
 	float r;
 	int counter=0;
 	float cost1=0;
+	//Create output file for visualization
+	ofstream myfile;
+	string filename="path_"+to_string(main_graph.getVertexNum())+"_S"+to_string(random_seed)+".txt";
+	myfile.open (filename);
+	myfile<<start;
 	while(true){
 		r = ((float) rand() / (RAND_MAX));
 		float select_prob=0;
@@ -989,16 +1003,18 @@ void simulation(){
 				cost1=cost2;
 				//cout<<"\tchild is chosen,new current node:("<<current_node<<","<<cost2<<")"<<endl;
 				cout<<","<<current_node;
+				myfile<<","<<current_node;
 				if(current_node==Destinations[dest]){
 					//cout<<"Finished, destination found"<<endl;
 					cout<<endl;
+					myfile<<endl;
 					return;
 				}
 				break;
 			}
 		}
 	}
-
+	myfile.close();
 }
 
 void create_grid_nodes_and_edges_from_SaT_file(){
@@ -2568,7 +2584,17 @@ int main(int argc, char* argv[])
     if(action.find("Stg=")!=string::npos){
       string temp=action.substr(4,action.length());
       strategy = stoi(temp);
-      cout<<"strategy:"<<strategy<<",temp:"<<temp<<endl;
+      cout<<"strategy:"<<strategy<<endl;
+    }
+    if(action.find("Beta=")!=string::npos){
+      string temp=action.substr(5,action.length());
+      Beta = stof(temp);
+      cout<<"Beta:"<<Beta<<endl;
+    }
+    if(action.find("Budget=")!=string::npos){
+      string temp=action.substr(7,action.length());
+      Budget = stof(temp);
+      cout<<"Budget:"<<Budget<<endl;
     }
   }
   int positions=N*N-1;
