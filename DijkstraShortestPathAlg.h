@@ -117,10 +117,11 @@ public:
 	double get_cost(int sink);
 	int get_perim_size();
 	void improve_distances(unordered_set<int> *FO_nodes, vector<Link> *FO_edges,unordered_map<pair<int,int>,float,hash_pair> *best_d);
-	void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX);
+	void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool acyclic=true,bool grandparent_check=false);
     void printAGFile();
     //void calculateMinPathStrategy();
-	void populateAGnodes();
+	void populateAGnodes(double Budget);
+	void expand_AG(double Budget);
 protected:
 	bool stuck( BaseVertex* source, BaseVertex* sink);
 
