@@ -2958,6 +2958,7 @@ int main(int argc, char *argv[])
 		}
 		if (action == "grandparent_check")
 		{
+			acyclic = false;
 			grandparent_check = true;
 			cout<<"grandparent_check="<<grandparent_check<<endl;
 		}
