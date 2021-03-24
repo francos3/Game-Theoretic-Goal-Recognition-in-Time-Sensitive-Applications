@@ -18,18 +18,32 @@
 #include "GraphElements.h"
 #include "Graph.h"
 #include "DijkstraShortestPathAlg.h"
+//#include "Astar.h"
 #include "YenTopKShortestPathsAlg.h"
 #include <boost/numeric/ublas/matrix.hpp>
 #include "colors.h"
 #include <tuple>
 #include <boost/algorithm/string.hpp>
 #include <ctime>
+#include <boost/graph/astar_search.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/random.hpp>
+#include <boost/random.hpp>
+#include <boost/graph/graphviz.hpp>
+#include <sys/time.h>
+#include <vector>
+#include <list>
+#include <iostream>
+#include <fstream>
+#include <math.h>    // for sqrt
+
+using namespace std;
+//using namespace boost;
 
 //#include<graphics.h>
 //#include <curses.h>
 //#include <boost/timer/timer.hpp>
 //using namespace boost::timer;
-using namespace std;
 
 bool debug = false;
 float input_lambda = 0;
@@ -100,6 +114,26 @@ int PO_level = 100;
 unordered_set<int> FO_nodes;
 
 vector<map<pair<pair<int, float>, pair<int, float>>, float>> Alpha;
+
+
+struct found_goal {}; // exception for termination
+
+// visitor that terminates when we find the goal
+template <class Vertex>
+class astar_goal_visitor : public boost::default_astar_visitor
+{
+public:
+  astar_goal_visitor(Vertex goal) : m_goal(goal) {}
+  template <class Graph>
+  void examine_vertex(Vertex u, Graph& g) {
+    if(u == m_goal)
+      throw found_goal();
+  }
+private:
+  Vertex m_goal;
+};
+
+
 
 template <typename S>
 auto select_random(const S &s, size_t n)
@@ -2766,6 +2800,12 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < argc; i++)
 	{
 		std::string action(argv[i]);
+		if (action == "OnlineAG")
+		{
+			//using main2 as the main for online AG until I merge Dijkstra and A* variants
+			main2(argc,argv); 
+			exit(0);
+		}
 		if (action == "AG")
 		{
 			AugGraph = true;
@@ -3000,6 +3040,9 @@ int main(int argc, char *argv[])
 		{
 			create_augmented_graph_from_SaT_file();
 		}
+/*		else if(OnlineAugGraph){
+			create_online_augmented_graph_from_SaT_file();
+		}*/
 		else
 		{
 			create_grid_nodes_and_edges_from_SaT_file();
@@ -4069,4 +4112,278 @@ int main(int argc, char *argv[])
 	PathMatrix PM_orig = *PM;
 	int t_max = optimizing_target_goal_dist(PM);
 	optimizing_observer(&PM_orig, nodes, t_max);
+}
+
+/////////////////////////
+// auxiliary types for A*
+struct location
+{
+  float y, x; // lat, long
+  location(float x1,float y1) 
+        {
+			x=x1;
+			y=y1;
+        }
+};
+typedef float cost;
+
+template <class Name, class LocMap>
+class city_writer {
+public:
+  city_writer(Name n, LocMap l, float _minx, float _maxx,
+              float _miny, float _maxy,
+              unsigned int _ptx, unsigned int _pty)
+    : name(n), loc(l), minx(_minx), maxx(_maxx), miny(_miny),
+      maxy(_maxy), ptx(_ptx), pty(_pty) {}
+  template <class Vertex>
+  void operator()(ostream& out, const Vertex& v) const {
+    float px = 1 - (loc[v].x - minx) / (maxx - minx);
+    float py = (loc[v].y - miny) / (maxy - miny);
+    out << "[label=\"" << name[v] << "\", pos=\""
+        << static_cast<unsigned int>(ptx * px) << ","
+        << static_cast<unsigned int>(pty * py)
+        << "\", fontsize=\"11\"]";
+  }
+private:
+  Name name;
+  LocMap loc;
+  float minx, maxx, miny, maxy;
+  unsigned int ptx, pty;
+};
+
+template <class WeightMap>
+class time_writer {
+public:
+  time_writer(WeightMap w) : wm(w) {}
+  template <class Edge>
+  void operator()(ostream &out, const Edge& e) const {
+    out << "[label=\"" << wm[e] << "\", fontsize=\"11\"]";
+  }
+private:
+  WeightMap wm;
+};
+
+
+// euclidean distance heuristic
+template <class Graph, class CostType, class LocMap>
+class distance_heuristic : public boost::astar_heuristic<Graph, CostType>
+{
+public:
+  typedef typename boost::graph_traits<Graph>::vertex_descriptor Vertex;
+  distance_heuristic(LocMap l, Vertex goal)
+    : m_location(l), m_goal(goal) {}
+  CostType operator()(Vertex u)
+  {
+    CostType dx = m_location[m_goal].x - m_location[u].x;
+    CostType dy = m_location[m_goal].y - m_location[u].y;
+    return ::sqrt(dx * dx + dy * dy);
+  }
+private:
+  LocMap m_location;
+  Vertex m_goal;
+};
+/////ASTAR declarations finished
+void read_Astar_Graph(vector<pair<int,int> > &edges,vector<cost> &weights,vector<location> &locations)
+{ 
+	typedef std::pair<int, int> edge;
+	cout << "hello read_Astar_Graph" << flush << endl;
+	std::ifstream in(input_filename.c_str());//in is for graph edges and weights
+	auto input_filename2=input_filename;
+	input_filename2.insert(input_filename.length()-4,"_Labels");//extension should always be csv
+	//cout<<input_filename2<<endl;
+	std::ifstream in2(input_filename2.c_str());//in2 is for coordinates file
+	
+	if(!in.good()){
+		cerr<<"file:"<<input_filename<<" does not exist!"<<endl;
+		exit(1);
+	}
+	else if(!in2.good()){
+		cerr<<"file:"<<input_filename2<<" does not exist!"<<endl;
+		exit(1);
+	}
+
+	string str;
+	total_nodes = 0;
+	int total_edges = 0;
+
+	while (getline(in2, str))
+	{
+		vector<string> results;
+		boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
+		locations.push_back(location(stof(results[1]),stof(results[2])));
+
+		total_nodes++;
+	}
+	std::cout << "total_nodes=" << total_nodes << endl;
+
+	while (getline(in, str))
+	{
+		vector<string> results;
+		boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
+		//std::vector<std::string> results((std::istream_iterator<string>(iss)),
+		//                             std::istream_iterator<string>());
+		//cout<<results[0]<<flush<<endl;
+		//cout<<results[1]<<flush<<endl;
+		//cout<<results[2]<<flush<<endl;
+		//cout<<"hello1a"<<flush<<endl;
+		//cout<<","<<results[1]<<flush<<","<<results[2]<<flush<<endl;
+		//cout<<"dest_index[results[1]]:"<<flush<<stoi(results[1])<<flush<<endl;
+		if (stoi(results[1]) == start)
+		{
+			cout<<"skipping incoming edges to start node:"<<stoi(results[0])<<endl;
+			continue; //skipping origin incomming edges
+		}
+		if (stoi(results[0]) == stoi(results[1]))
+		{ //no loops
+			cout << "\t\tskipped loop,from," << stoi(results[0]) << ",to," << stoi(results[1]) << endl;
+			continue;
+		}
+		if (all_destinations.find(stoi(results[0])) != all_destinations.end())
+		{
+			cout<<"skipping outgoing edges from destination:"<<stoi(results[0])<<endl;
+			continue; //ignoring outgoing edges from destinations
+		}
+		edges.push_back(make_pair(stoi(results[0]), stoi(results[1])));
+		weights.push_back(stof(results[2]));
+		total_edges++;
+	}
+	cout << "main_graph, total_edges:," << total_edges << endl;
+	//cout << "total_nodes:" << total_nodes << ",main_graph:" << main_graph.get_number_vertices() << endl;
+}
+
+int main2(int argc, char **argv)
+{
+  using namespace boost;
+  // specify some types
+  typedef adjacency_list<listS, vecS, directedS, no_property,
+    property<edge_weight_t, cost> > mygraph_t;
+  typedef property_map<mygraph_t, edge_weight_t>::type WeightMap;
+  typedef mygraph_t::vertex_descriptor vertex;
+  typedef mygraph_t::edge_descriptor edge_descriptor;
+  typedef mygraph_t::vertex_iterator vertex_iterator;
+  typedef std::pair<int, int> edge;
+  
+  
+  // specify data
+  /*enum nodes {
+    Troy, LakePlacid, Plattsburgh, Massena, Watertown, Utica,
+    Syracuse, Rochester, Buffalo, Ithaca, Binghamton, Woodstock,
+    NewYork, N
+  };
+  const char *name[] = {
+    "Troy", "Lake Placid", "Plattsburgh", "Massena",
+    "Watertown", "Utica", "Syracuse", "Rochester", "Buffalo",
+    "Ithaca", "Binghamton", "Woodstock", "New York"
+  };
+  location locations[] = { // lat/long
+    {42.73, 73.68}, {44.28, 73.99}, {44.70, 73.46},
+    {44.93, 74.89}, {43.97, 75.91}, {43.10, 75.23},
+    {43.04, 76.14}, {43.17, 77.61}, {42.89, 78.86},
+    {42.44, 76.50}, {42.10, 75.91}, {42.04, 74.11},
+    {40.67, 73.94}
+  };*/
+  /*
+  edge edge_array[] = {
+    edge(Troy,Utica), edge(Troy,LakePlacid),
+    edge(Troy,Plattsburgh), edge(LakePlacid,Plattsburgh),
+    edge(Plattsburgh,Massena), edge(LakePlacid,Massena),
+    edge(Massena,Watertown), edge(Watertown,Utica),
+    edge(Watertown,Syracuse), edge(Utica,Syracuse),
+    edge(Syracuse,Rochester), edge(Rochester,Buffalo),
+    edge(Syracuse,Ithaca), edge(Ithaca,Binghamton),
+    edge(Ithaca,Rochester), edge(Binghamton,Troy),
+    edge(Binghamton,Woodstock), edge(Binghamton,NewYork),
+    edge(Syracuse,Binghamton), edge(Woodstock,Troy),
+    edge(Woodstock,NewYork)
+  };*/
+  vector<edge> edge_array;
+  //edge_array.push_back(make_pair(0,1));
+  //edge_array.push_back(make_pair(1,2));
+  //edge_array.push_back(make_pair(2,3));
+  /*cost weights[] = { // estimated travel time (mins)
+    96, 134, 143, 65, 115, 133, 117, 116, 74, 56,
+    84, 73, 69, 70, 116, 147, 173, 183, 74, 71, 124
+  };*/
+  vector<cost> weights;
+  //weights.assign(3,1.0);
+  vector<location> locations;
+  //locations.push_back({0,1});
+  //locations.push_back({1,1});
+  //locations.push_back({2,1});
+
+  read_Astar_Graph(edge_array,weights,locations);
+  //unsigned int num_edges = sizeof(edge_array) / sizeof(edge);
+  unsigned int num_edges = edge_array.size();
+  cout<<"edge_array:";
+  for(auto element : edge_array){
+	  cout<<element.first<<","<<element.second<<endl;
+  }
+  /*location locations[] = { // lat/long
+    {42.73, 73.68}, {44.28, 73.99}, {44.70, 73.46}};*/
+  
+  
+  // create graph
+  mygraph_t g(N);
+  WeightMap weightmap = get(edge_weight, g);
+  for(std::size_t j = 0; j < num_edges; ++j) {
+    edge_descriptor e; bool inserted;
+    boost::tie(e, inserted) = add_edge(edge_array[j].first,
+                                       edge_array[j].second, g);
+    weightmap[e] = weights[j];
+  }
+  
+  
+  // pick random start/goal
+  boost::mt19937 gen(time(0));
+  //vertex start = random_vertex(g, gen);
+  //vertex goal = random_vertex(g, gen);
+  vertex goal = Destinations[0];
+  
+  
+  cout << "Start vertex: " << start << endl;
+  cout << "Goal vertex: " << goal << endl;
+  cout<<"Num_vertices:"<<num_vertices(g)<<",num_edges:"<<num_edges<<endl;
+  
+  /*ofstream dotfile;
+  dotfile.open("test-astar-cities.dot");
+  write_graphviz(dotfile, g,
+                 city_writer<const char **, location*>
+                  (name, locations, 73.46, 78.86, 40.67, 44.93,
+                   480, 400),
+                 time_writer<WeightMap>(weightmap));*/
+  
+  
+  vector<mygraph_t::vertex_descriptor> p(num_vertices(g));
+  vector<cost> d(num_vertices(g));
+  try {
+    // call astar named parameter interface
+    astar_search_tree
+      (g, start,
+       distance_heuristic<mygraph_t, cost, vector<location> >
+        (locations, goal),
+       predecessor_map(&p[0]).distance_map(&d[0]).
+       visitor(astar_goal_visitor<vertex>(goal)));
+  
+  
+  } catch(found_goal fg) { // found a path to the goal
+    list<vertex> shortest_path;
+    for(vertex v = goal;; v = p[v]) {
+      shortest_path.push_front(v);
+      if(p[v] == v)
+        break;
+    }
+    cout << "Shortest path from " << start << " to "
+         << goal << ": ";
+    list<vertex>::iterator spi = shortest_path.begin();
+    cout << start;
+    for(++spi; spi != shortest_path.end(); ++spi)
+      cout << " -> " << *spi;
+    cout << endl << "Total travel cost: " << d[goal] << endl;
+    return 0;
+  }
+  
+  cout << "Didn't find a path from " << start << "to"
+       << goal << "!" << endl;
+  return 0;
+  
 }
