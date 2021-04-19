@@ -80,11 +80,13 @@ map<int, int> dest_index;
 int connectivity = 0;
 bool map_display = false;
 bool stocastic_go = false;
+bool stocastic_go_observer = false;
 int strategy = 0;
 double Budget = 0;
 double Beta = 0;
 bool acyclic=true;
 bool grandparent_check=false;
+vector<map<pair<int,float>,float > > lambda_obs;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256]; //origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -958,7 +960,156 @@ void create_augmented_graph_from_SaT_file()
 		simulation();
 		exit(0);
 	}
+	else if(stocastic_go_observer)
+	{
+		//First calculate Lambda
+		for (size_t dest = 0; dest < Destinations.size(); dest++)
+		{
+			Dijkstra_algs_dest_to_dest[dest].determine_all_shortest_paths(current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), -1);
+			for (auto node : nodes_set)
+			{
+				if (!main_dijkstra_alg->is_node_reachable(node))
+				{
+					//cout<<"node "<<node<<" is not reachable from start"<<endl;
+					continue;
+				}
+				else
+				{
+					cout << "\treachable node:" << node << ",cost to destination[" << Destinations[dest] << "]:" << Dijkstra_algs_dest_to_dest[dest].get_cost(node);
+					cout << ",distance to start:," << main_dijkstra_alg->get_cost(node) << endl;
+				}
+			}
+		}
+
+		//Dijkstra_algs[0].print_perim_paths();
+
+		//NOW CREATE AUGMENTED GRAPH
+		//GIVEN BUDGET C
+		//ORIGIN Note IS (Orig,0)
+		main_dijkstra_alg->origin = main_graph.get_vertex(start);
+		main_dijkstra_alg->set_Destinations_Order(&Destinations);
+		for (auto dest : Destinations)
+		{
+			main_dijkstra_alg->Destinations.insert(dest);
+		}
+		for (size_t dest = 0; dest < Destinations.size(); dest++)
+		{
+			//cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
+			cout<<"grandpatent_check="<<grandparent_check<<endl;
+			main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget,acyclic,grandparent_check);
+		}
+		main_dijkstra_alg->printAGFile();
+		main_dijkstra_alg->populateAGnodes(Budget);
+		
+		if (strategy == 0)
+		{
+			calculate_min_path_strategy_AG();
+		}
+		else
+		{
+			//If we are doing a Budget-based strategy then the AG needs to be expanded
+			//by adding all possible costs up to the budget
+			//main_dijkstra_alg->expand_AG(Budget);
+			calculate_Gibbs_strategy_AG(Beta, Budget);
+		}
+		cout<<"calling calculate_observer_lambda"<<flush<<endl;
+
+		//For now the lambda(d) distribution is all destinations are equally probable
+		vector<float> dest_dist;
+		dest_dist.assign(Destinations.size(),1.0/float(Destinations.size()));
+		//initialize lammbda_obs
+		map<pair<int,float>,float > temp_map;
+		lambda_obs.assign(Destinations.size(),temp_map);
+		for(size_t dest=0;dest<Destinations.size();dest++){
+			lambda_obs[dest][make_pair(start,0)]=dest_dist[dest];
+		}
+
+        calculate_observer_lambda2(start,0);
+		exit(0);
+		//Now calculate lambda for all states in the AG
+		simulation();
+		exit(0);
+	}
 }
+void calculate_observer_lambda2(int current_node,float current_cost){
+	if(all_destinations.count(current_node)>0){
+		return;//End of recursive forward search
+	}
+	//int current_cost=0;
+	auto AG_Edges = main_dijkstra_alg->getSGEdges();
+	
+	vector<float> lambda_initial;
+
+	auto current_vertex = main_graph.get_vertex(current_node);
+
+	//Numerator
+	map<pair<int,int> ,float> numerator;
+	map<int,float> denominator;
+	for(size_t dest=0;dest<Destinations.size();dest++){
+		for(auto dest_node : (*AG_Edges)[dest][current_node]){
+			auto dest_vertex = main_graph.get_vertex(dest_node);
+			float cost_child=current_cost + main_graph.get_edge_weight(current_vertex, dest_vertex);
+			auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
+			if(Alpha[dest].count(key)<1){
+				continue;//skip 0 prob edges
+			}
+		    cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<endl;
+			denominator[dest_node]+=Alpha[dest][key]*lambda_obs[dest][make_pair(current_node,current_cost)];
+			//numerator[make_pair(dest,dest_node)]=(Alpha[dest][key]*(*dest_dist)[dest]);
+			numerator[make_pair(dest,dest_node)]=Alpha[dest][key]*lambda_obs[dest][make_pair(current_node,current_cost)];
+		}
+	}
+	//Second passover once denominator is calculated
+	for(size_t dest=0;dest<Destinations.size();dest++){
+		for(auto dest_node : (*AG_Edges)[dest][current_node]){
+			auto dest_vertex = main_graph.get_vertex(dest_node);
+			float cost_child=current_cost + main_graph.get_edge_weight(current_vertex, dest_vertex);
+			auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
+			if(Alpha[dest].count(key)<1){
+				continue;//skip 0 prob edges
+			}
+		    cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<",";
+			cout<<"numerator:,"<<numerator[make_pair(dest,dest_node)]<<",denominator:,"<<denominator[dest_node]<<endl;
+			lambda_obs[dest][make_pair(dest_node,cost_child)]=numerator[make_pair(dest,dest_node)]/denominator[dest_node];
+			cout<<"lambda,\u03BB["<<Destinations[dest]<<"]"<<"["<<dest_node<<","<<cost_child<<"]:,"<<lambda_obs[dest][make_pair(dest_node,cost_child)]<<endl;
+            calculate_observer_lambda2(dest_node,cost_child);
+
+		}
+	}
+}/*
+float calculate_observer_lambda1(int current_node, float current_cost){
+	auto AG_Edges = main_dijkstra_alg->getSGEdges();
+	//cout<<"\tCalculate_observer_lambda,node:"<<current_node<<",cost:"<<current_cost<<",dest:"<<Destinations[0]<<flush<<endl;
+	
+	//Dirac's delta meausre for expected destination vs alternative destinations
+	if(current_node==Destinations[dest]){
+		return 1.0;//We are at the expected destination
+	}
+	else if(all_destinations.count(current_node)>0){
+		return 0.0;//We are at an alternative destination node
+	}
+
+	//auto children=(*AG_Edges)[dest][current_node]);
+	//auto children_it=children.begin();
+	//advance(children_it,current_child);
+	float sum=0;
+	for (auto dest_node : (*AG_Edges)[dest][current_node])
+	{
+		auto current_vertex = main_graph.get_vertex(current_node);
+		//cout<<"current_vertex:"<<current_vertex->getID()<<flush<<endl;
+		auto dest_vertex = main_graph.get_vertex(dest_node);
+		//cout<<"dest_vertex:"<<dest_vertex->getID()<<flush<<endl;
+		float cost_child=current_cost + main_graph.get_edge_weight(current_vertex, dest_vertex);
+		auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
+		//cout<<"key:["<<key.first.first<<","<<key.first.second<<"],["<<key.second.first<<","<<key.second.second<<"]"<<flush<<endl;
+		sum+=Alpha[dest][key]*calculate_observer_lambda(dest_node,cost_child,dest);
+		//cout<<"\tsum["<<current_node<<","<<dest_node<<"]:"<<sum<<flush<<endl;
+		//cout<<"\tAlpha["<<current_node<<","<<dest_node<<"]:"<<Alpha[dest][key]<<flush<<endl;
+	}
+	cout<<"\tsum["<<current_node<<"]:"<<sum<<flush<<endl;
+	return sum;
+}*/
+
 void calculate_min_path_strategy_AG()
 {
 	cout << "hola calculate_min_path_strategy" << endl;
@@ -987,7 +1138,10 @@ void calculate_min_path_strategy_AG()
 		{
 			double OptPaths = 0;
 			auto orig_vertex = main_graph.get_vertex(node.first->getID());
-			cout << "\t\torig_vertex:" << orig_vertex->getID();
+			//if(all_destinations.count(node.first->getID())>0){
+			//	continue;//skip destinations as origin nodes
+			//}
+			cout << "\t\torig_vertex1:" << orig_vertex->getID();
 			cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
 
 			for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()])
@@ -1020,13 +1174,12 @@ void calculate_min_path_strategy_AG()
 			{
 				auto dest_vertex = main_graph.get_vertex(child_node);
 				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
-
-				if (Alpha[dest][make_pair(make_pair(node.first->getID(), node.second),
-										  make_pair(child_node, x))] > 0)
-				{
-					Alpha[dest][make_pair(make_pair(node.first->getID(), node.second),
-										  make_pair(child_node, x))] = 1.0 / OptPaths;
+				auto key=make_pair(make_pair(node.first->getID(), node.second),make_pair(child_node, x));
+				if(Alpha[dest].count(key)<1){
+					continue;//skip 0 prob edges
 				}
+
+				Alpha[dest][key] = 1.0 / OptPaths;
 				cout << "Alpha[" << Destinations[dest] << ",(" << node.first->getID() << "," << node.second << ")->(" << child_node;
 				cout << "," << x << ")]:" << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
 				myfile << Destinations[dest] << "," << node.first->getID() << "," << node.second << "," << child_node;
@@ -1045,7 +1198,8 @@ void calculate_Gibbs_strategy_AG(double beta = 0.5, double budget = 100)
 	Alpha.assign(Destinations.size(), temp_map);
 	//auto orig_node=main_graph.get_vertex(start);
 	ofstream myfile;
-	string filename = "RNG_N" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	//string filename = "RNG_N" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	string filename = "AG" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
 
 	auto AG_Nodes = main_dijkstra_alg->getAGsubgraphs();
@@ -2832,6 +2986,11 @@ int main(int argc, char *argv[])
 		{
 			optimize_budget = true;
 			stocastic_go = true;
+		}
+		if (action == "stocastic_go_observer")
+		{
+			optimize_budget = true;
+			stocastic_go_observer = true;
 		}
 		if (action == "min_cal")
 		{
