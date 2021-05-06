@@ -670,8 +670,11 @@ void DijkstraShortestPathAlg::populateAGnodes(double Budget)
 	map<int, set<int>> temp;
 	AG_sg_edges.assign(Destinations.size(), temp);
 	AGnodes.insert(make_pair(origin, 0.0));
+	set<pair<BaseVertex*,double> > temp_set;
+
 	//Subgraphs share the initial node
 	AG_subgraph.assign(Destinations.size(), AGnodes);
+	//AG_subgraph_destinations.resize(Destinations.size(),temp_set);
 	cout << "Destination_order:" << Destinations_order << endl;
 	for (auto path : AGpaths)
 	{
@@ -688,21 +691,25 @@ void DijkstraShortestPathAlg::populateAGnodes(double Budget)
 		}
 		for (size_t node = 1; node < path.size(); node++)
 		{
+			double parent_cost=cost;
 			cost += m_pDirectGraph->get_edge_weight(path[node - 1], path[node]);
 			AGnodes.insert(make_pair(path[node], cost));
 			AG_subgraph[dest].insert(make_pair(path[node], cost));
+			AG_edges_bw[make_pair(path[node]->getID(), cost)].insert(make_pair(path[node-1]->getID(),parent_cost));
 			AG_Edges[path[node - 1]->getID()].insert(path[node]->getID());
 			AG_sg_edges[dest][path[node - 1]->getID()].insert(path[node]->getID());
 			cout << "AG_Node:" << path[node]->getID() << ",cost:" << cost << endl;
 			cout << "AG_subgraph[" << dest << "]:" << path[node]->getID() << ",cost:" << cost;
 			cout << ",Destination:" << path.back()->getID() << endl;
 		}
+		AG_destinations.insert(make_pair(path.back(), cost));
+		cout << "AG_destinations[" << dest << "]:" << path.back()->getID() << ",cost:" << cost<<endl;
 	}
 }
 
 void DijkstraShortestPathAlg::expand_AG(double Budget)
 {
-	cout << "Budget:" << Budget << endl;
+	//cout << "Budget:" << Budget << endl;
 	//std::set<pair<BaseVertex*,double> > AGnodes;
 	//std::vector<std::set<pair<BaseVertex*,double> > > AG_subgraph;
 	//std::vector<map<int, std::set<int> > > AG_sg_edges;
@@ -779,7 +786,7 @@ void DijkstraShortestPathAlg::printAGFile()
 void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, float Budget,bool acyclic, bool grandparent_check)
 {
 	//cout<<"AG,source:,"<<source->getID()<<",sink:,"<<sink->getID()<<endl;
-	cout<<"Budget:"<<Budget<<endl;
+	//cout<<"Budget:"<<Budget<<endl;
 	//We are out of budget
 	if(Budget<=0){
 		return;
@@ -791,10 +798,17 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
 	if (source->getID() == sink->getID())
 	{
 		cout << "path found:,";
+		float cost=0;
 		for (size_t i = 0; i < AGpath.size(); i++)
 		{
-			cout << AGpath[i]->getID() << ",";
-			//cout<<"-"<<AGpath[i]->Weight()<<"],";
+			cout <<"["<< AGpath[i]->getID() << ",";
+			if(i<1){
+				cout<<0<<"],";
+			}
+			else{
+				cost+=m_pDirectGraph->get_edge_weight(AGpath[i-1],AGpath[i]);
+				cout<<cost<<"],";
+			}
 		}
 		cout << endl;
 		/*cout<<"seen:,";

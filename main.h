@@ -63,8 +63,9 @@ struct hash_pair {
 void calculate_min_path_strategy_AG();
 void calculate_Gibbs_strategy_AG(double beta,double Budget);
 void simulation();
-//float calculate_observer_lambda1(int current_node, float current_cost);
-void calculate_observer_lambda2(int current_node,float current_cost);
+void calculate_observer_zeta();
+void calculate_observer_lambda(int current_node,float current_cost);
+float calculate_zeta(std::pair<int,float> s);
 int main2(int argc, char *argv[]);
 
 #endif

@@ -45,6 +45,8 @@ public:
     std::set<std::vector<BaseVertex*> > AGpaths;
     std::set<pair<BaseVertex*,double> > AGnodes;
     std::vector<std::set<pair<BaseVertex*,double> > > AG_subgraph;
+    std::set<pair<BaseVertex*,double> > AG_destinations;
+	std::map<pair<int,double>,set<pair<int,double> > > AG_edges_bw;
 	
 	DijkstraShortestPathAlg(Graph* pGraph):m_pDirectGraph(pGraph){}
 	~DijkstraShortestPathAlg(void){clear();}
@@ -65,8 +67,16 @@ public:
 		auto ptr=make_shared<vector<std::set<pair<BaseVertex*,double> > > >(AG_subgraph);
 		return ptr;
 	}
+	std::shared_ptr<set<pair<BaseVertex*,double> > > getAGDestinationNodes(){
+		auto ptr=make_shared<std::set<pair<BaseVertex*,double> > >(AG_destinations);
+		return ptr;
+	}
 	std::shared_ptr<std::map<int,std::set<int> > > getAGEdges(){
 		auto ptr=make_shared<std::map<int,std::set<int> > > (AG_Edges);
+		return ptr;
+	}
+	std::shared_ptr<std::map<pair<int,double>,std::set<pair<int,double> > > > getAGEdgesBw(){
+	    auto ptr=make_shared<std::map<pair<int,double>,set<pair<int,double> > > > (AG_edges_bw);
 		return ptr;
 	}
 	std::shared_ptr<vector<map<int,std::set<int> > > > getSGEdges(){

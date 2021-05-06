@@ -87,6 +87,8 @@ double Beta = 0;
 bool acyclic=true;
 bool grandparent_check=false;
 vector<map<pair<int,float>,float > > lambda_obs;
+map<pair<int,float>,float > zeta_obs;
+set<pair<int,float> > Active_AG;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256]; //origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -116,6 +118,7 @@ int PO_level = 100;
 unordered_set<int> FO_nodes;
 
 vector<map<pair<pair<int, float>, pair<int, float>>, float>> Alpha;
+map<pair<pair<int, float>, pair<int, float> >, float> C_LambdaAbs;
 
 
 struct found_goal {}; // exception for termination
@@ -1024,14 +1027,23 @@ void create_augmented_graph_from_SaT_file()
 			lambda_obs[dest][make_pair(start,0)]=dest_dist[dest];
 		}
 
-        calculate_observer_lambda2(start,0);
+        calculate_observer_lambda(start,0);
+		//For zeta, we recursively iterate backwards from each destination node
+		calculate_observer_zeta();
+		/*for(size_t dest=0;dest<Destinations.size();dest++){
+			for(auto node : (*AG_Dest_Nodes)[dest]){
+				auto node2=make_pair(node.first->getID(),node.second);
+				calculate_observer_zeta(node2,dest);
+				exit(0);
+			}
+		}*/
 		exit(0);
 		//Now calculate lambda for all states in the AG
 		simulation();
 		exit(0);
 	}
 }
-void calculate_observer_lambda2(int current_node,float current_cost){
+void calculate_observer_lambda(int current_node,float current_cost){
 	if(all_destinations.count(current_node)>0){
 		return;//End of recursive forward search
 	}
@@ -1071,44 +1083,164 @@ void calculate_observer_lambda2(int current_node,float current_cost){
 		    cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<",";
 			cout<<"numerator:,"<<numerator[make_pair(dest,dest_node)]<<",denominator:,"<<denominator[dest_node]<<endl;
 			lambda_obs[dest][make_pair(dest_node,cost_child)]=numerator[make_pair(dest,dest_node)]/denominator[dest_node];
+			C_LambdaAbs[key]=denominator[dest_node];
 			cout<<"lambda,\u03BB["<<Destinations[dest]<<"]"<<"["<<dest_node<<","<<cost_child<<"]:,"<<lambda_obs[dest][make_pair(dest_node,cost_child)]<<endl;
-            calculate_observer_lambda2(dest_node,cost_child);
-
+			cout<<"Clambda["<<current_node<<","<<current_cost<<"]["<<dest_node<<","<<cost_child<<"]="<<C_LambdaAbs[key]<<endl;
+			Active_AG.insert(make_pair(dest_node,cost_child));
+			cout<<"Active_AG["<<dest_node<<","<<cost_child<<"]"<<endl;
+            calculate_observer_lambda(dest_node,cost_child);
 		}
 	}
-}/*
-float calculate_observer_lambda1(int current_node, float current_cost){
-	auto AG_Edges = main_dijkstra_alg->getSGEdges();
-	//cout<<"\tCalculate_observer_lambda,node:"<<current_node<<",cost:"<<current_cost<<",dest:"<<Destinations[0]<<flush<<endl;
-	
-	//Dirac's delta meausre for expected destination vs alternative destinations
-	if(current_node==Destinations[dest]){
-		return 1.0;//We are at the expected destination
+}
+void calculate_observer_zeta(){
+	auto AG_Edges = main_dijkstra_alg->getAGEdges();
+	auto BW_AG_Edges = main_dijkstra_alg->getAGEdgesBw();
+	auto destination_nodes=main_dijkstra_alg->getAGDestinationNodes();
+	stack<pair<int,float> > pending;
+	cout<<"\tCalculate_observer_zeta"<<endl;
+	//ForEach s in destinations add zeta value of 0 and add destinations to queue
+	for(auto dest_node : *destination_nodes){
+		auto s=make_pair(dest_node.first->getID(),dest_node.second);
+		if(Active_AG.count(s)<1){
+			continue;//Skipping destinations not reached by current strategy
+		}
+		zeta_obs[s]=0;
+		pending.push(s);
+		cout<<"\tAdding destination ["<<s.first<<","<<s.second<<"] to stack"<<endl;
 	}
-	else if(all_destinations.count(current_node)>0){
-		return 0.0;//We are at an alternative destination node
+	while(!pending.empty()){
+		auto current_node=pending.top();
+		cout<<"\tcurrent_node:"<<current_node.first<<","<<current_node.second<<endl;
+		//If z_s is known, then pop it from pending stack
+		//And add AG parents as long as there is a non-zero lambda_obs value
+		if(zeta_obs.find(current_node)!=zeta_obs.end()){
+			cout<<"\tCase 1, zeta is known for node:"<<current_node.first<<","<<current_node.second<<",adding children nodes:"<<endl;
+			cout<<"Removing1 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
+			pending.pop();
+			//Add parent nodes to stack
+		    for (auto parent_node : (*BW_AG_Edges)[current_node]){
+				if(Active_AG.count(current_node)<1){
+					continue;//Skipping nodes not reached by current strategy
+				}
+				if(zeta_obs.find(parent_node)==zeta_obs.end()){//parent node has no zeta so add to stack
+					pending.push(parent_node);
+					cout<<"\t\tCase 2, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
+					continue;
+				}
+			}
+			//And go to next node in stack
+			continue;
+		}
+
+		//So we need to calculate z(s)
+		//Check if we know all zetas for all children(s)
+		bool ready=true;
+		for (auto dest_node : (*AG_Edges)[current_node.first]){
+			auto current_vertex = main_graph.get_vertex(current_node.first);
+			cout<<"current_vertex:"<<current_vertex->getID()<<flush<<endl;
+			auto dest_vertex = main_graph.get_vertex(dest_node);
+			cout<<"dest_vertex:"<<dest_vertex->getID()<<flush<<endl;
+			float cost_child=current_node.second + main_graph.get_edge_weight(current_vertex, dest_vertex);
+			if(Active_AG.count(make_pair(dest_node,cost_child))<1){
+				cout<<"node["<<dest_node<<","<<cost_child<<"] is missing from current AG, skipping"<<endl;
+				continue;//Skipping nodes not reached by current strategy
+			}
+			//auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
+			auto ag_dest_node=make_pair(dest_node,cost_child);
+			if(zeta_obs.find(ag_dest_node)==zeta_obs.end()){//child node has no zeta so add to queue
+				cout<<"\t\tadding child node:["<<ag_dest_node.first<<","<<ag_dest_node.second<<"]"<<endl;
+				pending.push(ag_dest_node);
+				ready=false;//No break, we evaluate all children nodes so we can add any which have priority
+			}
+		}
+		if(ready){
+			cout<<"Calculate Zeta,all children zetas available"<<endl;
+			zeta_obs[current_node]=calculate_zeta(current_node);
+			cout<<"zeta["<<current_node.first<<","<<current_node.second<<"]:,"<<zeta_obs[current_node]<<endl;
+			cout<<"Removing2 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
+			pending.pop();
+			//Add parent nodes with pending zeta calculation
+			for (auto parent_node : (*BW_AG_Edges)[current_node]){
+				cout<<"\tevaluating for adding parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
+				if(Active_AG.count(parent_node)<1){
+					cout<<"\tskipping parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
+					continue;//Skipping nodes not reached by current strategy
+				}
+				if(zeta_obs.find(parent_node)==zeta_obs.end()){//parent node has no zeta so add to stack
+					pending.push(parent_node);
+					cout<<"\t\tCase 2a, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
+					continue;
+				}
+
+			}
+			}
+	}
+	//Record All Relevant Data
+	ofstream myfile;
+	string filename = "Obs_" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	myfile.open(filename);
+	for(auto node : zeta_obs){
+		myfile<<"zeta,\u03B6["<<node.first.first<<","<<node.first.second<<"]="<<node.second<<endl;
+	}
+	for(size_t dest=0;dest<Destinations.size();dest++){
+		for(auto node : lambda_obs[dest]){
+			myfile<<"lambda,\u03BB|^{["<<node.first.first<<","<<node.first.second<<"]}"<<"("<<Destinations[dest]<<")="<<node.second<<endl;
+		}
+	}
+	for(size_t dest=0;dest<Destinations.size();dest++){
+		for(auto node : nodes_set){
+			if(node==start){
+				myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+			}
+			else{
+				myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<Dijkstra_algs_dest_to_dest[dest].get_cost(node)<<endl;
+			}
+		}
+	}
+		
+	for(auto node : C_LambdaAbs){
+			myfile<<"Lambda,\u039B_{["<<node.first.first.first<<","<<node.first.first.second<<"]["<<node.first.second.first<<","<<node.first.second.second<<"]}="<<node.second<<endl;
 	}
 
-	//auto children=(*AG_Edges)[dest][current_node]);
-	//auto children_it=children.begin();
-	//advance(children_it,current_child);
-	float sum=0;
-	for (auto dest_node : (*AG_Edges)[dest][current_node])
-	{
-		auto current_vertex = main_graph.get_vertex(current_node);
-		//cout<<"current_vertex:"<<current_vertex->getID()<<flush<<endl;
-		auto dest_vertex = main_graph.get_vertex(dest_node);
-		//cout<<"dest_vertex:"<<dest_vertex->getID()<<flush<<endl;
-		float cost_child=current_cost + main_graph.get_edge_weight(current_vertex, dest_vertex);
-		auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
-		//cout<<"key:["<<key.first.first<<","<<key.first.second<<"],["<<key.second.first<<","<<key.second.second<<"]"<<flush<<endl;
-		sum+=Alpha[dest][key]*calculate_observer_lambda(dest_node,cost_child,dest);
-		//cout<<"\tsum["<<current_node<<","<<dest_node<<"]:"<<sum<<flush<<endl;
-		//cout<<"\tAlpha["<<current_node<<","<<dest_node<<"]:"<<Alpha[dest][key]<<flush<<endl;
+
+	myfile.close();
+}
+float calculate_zeta(pair<int,float> s){
+	auto AG_Edges = main_dijkstra_alg->getAGEdges();
+	//First calculate inner maxD of eq. 14
+	//cout<<"calculate_zeta for node["<<s.first<<","<<s.second<<endl;
+	float maxD=0;
+	for (size_t dest = 0; dest < Destinations.size(); dest++){
+		if(lambda_obs[dest].find(s)==lambda_obs[dest].end()){
+			continue;//Skipping nodes not in current AG-SubGraph
+		}
+		//cout<<"\tlambda_obs["<<dest<<"]["<<s.first<<","<<s.second<<"]:"<<lambda_obs[dest][s]<<endl;
+		//cout<<"\tdelta["<<dest<<"]="<<Dijkstra_algs_dest_to_dest[dest].get_cost(s.first)<<endl;
+		if(s.first==start){
+			maxD=max(maxD,lambda_obs[dest][s]*float(main_dijkstra_alg->get_cost(Destinations[dest])));
+		}
+		else{
+			maxD=max(maxD,lambda_obs[dest][s]*float(Dijkstra_algs_dest_to_dest[dest].get_cost(s.first)));
+		}
 	}
-	cout<<"\tsum["<<current_node<<"]:"<<sum<<flush<<endl;
-	return sum;
-}*/
+	float zeta=maxD;
+	//Second calculate the second term in eq. 14
+    float sum=0;
+	auto current_vertex = main_graph.get_vertex(s.first);
+	for (auto dest_node : (*AG_Edges)[s.first]){
+			auto dest_vertex = main_graph.get_vertex(dest_node);
+			float cost_child=s.second + main_graph.get_edge_weight(current_vertex, dest_vertex);
+			auto key=make_pair(s,make_pair(dest_node,cost_child));
+			if(C_LambdaAbs.find(key)==C_LambdaAbs.end()){
+				continue;//skip 0 probability edges
+			}
+			sum+=C_LambdaAbs[make_pair(s,make_pair(dest_node,cost_child))]*zeta_obs[make_pair(dest_node,cost_child)];
+			//cout<<"s'["<<dest_node<<","<<cost_child<<"]"<<",C_Lambda_Abs="<<C_LambdaAbs[make_pair(s,make_pair(dest_node,cost_child))]<<",zeta_obs="<<zeta_obs[make_pair(dest_node,cost_child)]<<endl;
+	}
+	//cout<<"term2:"<<sum<<endl;
+	zeta=max(zeta,sum);
+	return zeta;
+}
 
 void calculate_min_path_strategy_AG()
 {
