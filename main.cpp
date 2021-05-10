@@ -1083,6 +1083,7 @@ void calculate_observer_lambda(int current_node,float current_cost){
 		}
 	}
 	//Second passover once denominator is calculated
+	Active_AG.insert(make_pair(start,0));
 	for(size_t dest=0;dest<Destinations.size();dest++){
 		for(auto dest_node : (*AG_Edges)[dest][current_node]){
 			auto dest_vertex = main_graph.get_vertex(dest_node);
