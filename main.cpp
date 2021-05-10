@@ -89,6 +89,8 @@ bool grandparent_check=false;
 vector<map<pair<int,float>,float > > lambda_obs;
 map<pair<int,float>,float > zeta_obs;
 set<pair<int,float> > Active_AG;
+set<pair<int,float> > X_Hat;
+set<pair<int,float> > X_Crit;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256]; //origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -679,7 +681,12 @@ void create_augmented_graph_from_SaT_file()
 	{
 		vector<string> results;
 		boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
-		cout << "results[1]" << results[1] << endl;
+		//cout << "results[1]" << results[1] << endl;
+		if(!random_destinations){
+			if (all_destinations.find(stoi(results[0])) != all_destinations.end()){
+				continue;//skipping adding any nodes due to outgoing destination edges
+			}
+		}
 		auto ret = nodes_set.insert(stoi(results[0]));
 		if (ret.second == true)
 			total_nodes++;
@@ -731,6 +738,7 @@ void create_augmented_graph_from_SaT_file()
 		}
 		if (all_destinations.find(stoi(results[0])) != all_destinations.end())
 		{
+			cout<<"Ignoring outgoing edge from destination:,"<<stoi(results[0])<<",to,"<<stoi(results[1])<<endl;
 			continue; //ignoring outgoing edges from destinations
 		}
 		else if (all_destinations.find(stoi(results[1])) != all_destinations.end())
@@ -745,6 +753,9 @@ void create_augmented_graph_from_SaT_file()
 		total_edges++;
 	}
 	cout << "main_graph, total_edges:," << total_edges << endl;
+
+    //Remove any nodes who only exist due to outgoing edge from a destination-designed node
+
 	file_node_counter = total_nodes;
 	//Now create Dijkstra Graph
 	main_graph.set_number_vertices(file_node_counter);
@@ -1177,7 +1188,7 @@ void calculate_observer_zeta(){
 	}
 	//Record All Relevant Data
 	ofstream myfile;
-	string filename = "Obs_" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	string filename = "OBS_V" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
 	for(auto node : zeta_obs){
 		myfile<<"zeta,\u03B6["<<node.first.first<<","<<node.first.second<<"]="<<node.second<<endl;
@@ -1201,7 +1212,31 @@ void calculate_observer_zeta(){
 	for(auto node : C_LambdaAbs){
 			myfile<<"Lambda,\u039B_{["<<node.first.first.first<<","<<node.first.first.second<<"]["<<node.first.second.first<<","<<node.first.second.second<<"]}="<<node.second<<endl;
 	}
+	for(auto node : X_Hat){
 
+            myfile<<"X_Hat,X̂["<<node.first<<","<<node.second<<"]"<<endl;
+	}
+	//Xcrit is calculated as 
+	auto paths=main_dijkstra_alg->getAGpaths();
+	for(auto path : *paths){
+		float cost=0;
+		if(path.size()==1){
+			continue;
+		}
+		for(size_t i=1;i<path.size();i++){
+			cost+=main_graph.get_edge_weight(path[i-1],path[i]);
+			auto key=make_pair(path[i]->getID(),cost);
+			if(X_Hat.count(key)>0){
+				X_Crit.insert(key);
+				break;
+			}
+		}
+	}
+	
+	for(auto node : X_Crit){
+
+            myfile<<"X_Crit,X̂^{crit}["<<node.first<<","<<node.second<<"]"<<endl;
+	}
 
 	myfile.close();
 }
@@ -1237,6 +1272,10 @@ float calculate_zeta(pair<int,float> s){
 			sum+=C_LambdaAbs[make_pair(s,make_pair(dest_node,cost_child))]*zeta_obs[make_pair(dest_node,cost_child)];
 			//cout<<"s'["<<dest_node<<","<<cost_child<<"]"<<",C_Lambda_Abs="<<C_LambdaAbs[make_pair(s,make_pair(dest_node,cost_child))]<<",zeta_obs="<<zeta_obs[make_pair(dest_node,cost_child)]<<endl;
 	}
+	//X_Hat are those nodes where first term in eq 14 is dominant
+	if(maxD>=sum){
+		X_Hat.insert(s);
+	}
 	//cout<<"term2:"<<sum<<endl;
 	zeta=max(zeta,sum);
 	return zeta;
@@ -1251,7 +1290,7 @@ void calculate_min_path_strategy_AG()
 	Alpha.assign(Destinations.size(), temp_map);
 	//auto orig_node=main_graph.get_vertex(start);
 	ofstream myfile;
-	string filename = "AG" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	string filename = "AG_V" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
 
 	auto AG_Nodes = main_dijkstra_alg->getAGsubgraphs();
@@ -1331,7 +1370,7 @@ void calculate_Gibbs_strategy_AG(double beta = 0.5, double budget = 100)
 	//auto orig_node=main_graph.get_vertex(start);
 	ofstream myfile;
 	//string filename = "RNG_N" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
-	string filename = "AG" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	string filename = "AG_V" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
 
 	auto AG_Nodes = main_dijkstra_alg->getAGsubgraphs();

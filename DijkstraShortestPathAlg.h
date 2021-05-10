@@ -59,6 +59,10 @@ public:
 		Destinations_order.assign(dests->begin(),dests->end());
 	}
 
+    std::shared_ptr<set<vector<BaseVertex* > > > getAGpaths(){
+		auto ptr=make_shared<std::set<std::vector<BaseVertex*> > >(AGpaths);
+		return ptr;
+	}
 	std::shared_ptr<set<pair<BaseVertex*,double> > > getAGNodes(){
 		auto ptr=make_shared<std::set<pair<BaseVertex*,double> > >(AGnodes);
 		return ptr;
