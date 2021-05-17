@@ -121,6 +121,7 @@ unordered_set<int> FO_nodes;
 
 vector<map<pair<pair<int, float>, pair<int, float>>, float>> Alpha;
 map<pair<pair<int, float>, pair<int, float> >, float> C_LambdaAbs;
+//std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
 
 
 struct found_goal {}; // exception for termination
@@ -1235,9 +1236,23 @@ void calculate_observer_zeta(){
 	}
 	
 	for(auto node : X_Crit){
-
-            myfile<<"X_Crit,X̂^{crit}["<<node.first<<","<<node.second<<"]"<<endl;
-	}
+		//Also calculate estimated AG node
+		pair<int,float> chosen_AG_dest=make_pair(0,0.0);
+		for (size_t dest = 0; dest < Destinations.size(); dest++){
+			if(node.first==start){
+				if(lambda_obs[dest][node]*float(main_dijkstra_alg->get_cost(Destinations[dest]))>=zeta_obs[node]){
+					chosen_AG_dest=make_pair(Destinations[dest],node.second+main_dijkstra_alg->get_cost(Destinations[dest])>chosen_AG_dest.second);
+				}
+			}
+			else{
+				if(lambda_obs[dest][node]*float(Dijkstra_algs_dest_to_dest[dest].get_cost(node.first))>=zeta_obs[node]){
+					chosen_AG_dest=make_pair(Destinations[dest],node.second+Dijkstra_algs_dest_to_dest[dest].get_cost(node.first));
+				}
+			}
+		}
+		myfile<<"X_Crit,X̂^{crit}["<<node.first<<","<<node.second<<"],ChosenDest["<<chosen_AG_dest.first<<","<<chosen_AG_dest.second<<"]"<<endl;
+		chosen_AG_dest;
+		}
 
 	myfile.close();
 }
@@ -1259,6 +1274,7 @@ float calculate_zeta(pair<int,float> s){
 			maxD=max(maxD,lambda_obs[dest][s]*float(Dijkstra_algs_dest_to_dest[dest].get_cost(s.first)));
 		}
 	}
+
 	float zeta=maxD;
 	//Second calculate the second term in eq. 14
     float sum=0;
