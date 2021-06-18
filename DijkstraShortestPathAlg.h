@@ -44,6 +44,7 @@ public:
 	vector<int> Destinations_order;
     std::set<std::vector<BaseVertex*> > AGpaths;
     std::set<pair<BaseVertex*,double> > AGnodes;
+    std::set<pair<int,double> > AGnodesID;
     std::vector<std::set<pair<BaseVertex*,double> > > AG_subgraph;
     std::set<pair<BaseVertex*,double> > AG_destinations;
 	std::map<pair<int,double>,set<pair<int,double> > > AG_edges_bw;
@@ -63,10 +64,14 @@ public:
 		auto ptr=make_shared<std::set<std::vector<BaseVertex*> > >(AGpaths);
 		return ptr;
 	}
-	std::shared_ptr<set<pair<BaseVertex*,double> > > getAGNodes(){
-		auto ptr=make_shared<std::set<pair<BaseVertex*,double> > >(AGnodes);
-		return ptr;
-	}
+	//std::shared_ptr<set<pair<BaseVertex*,double> > > getAGNodes(){
+	//	auto ptr=make_shared<std::set<pair<BaseVertex*,double> > >(AGnodes);
+	//	return ptr;
+	//}
+	//std::shared_ptr<set<pair<int,double> > > getAGNodesID(){
+	//	auto ptr=make_shared<std::set<pair<int,double> > >(AGnodesID);
+	//	return ptr;
+	//}
 	std::shared_ptr<vector<set<pair<BaseVertex*,double> > > > getAGsubgraphs(){
 		auto ptr=make_shared<vector<std::set<pair<BaseVertex*,double> > > >(AG_subgraph);
 		return ptr;
@@ -134,8 +139,8 @@ public:
 	void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool acyclic=true,bool grandparent_check=false);
     void printAGFile();
     //void calculateMinPathStrategy();
-	void populateAGnodes(double Budget);
-	void expand_AG(double Budget);
+	void populateAGnodes();
+	//void expand_AG(double Budget);
 protected:
 	bool stuck( BaseVertex* source, BaseVertex* sink);
 

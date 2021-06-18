@@ -663,13 +663,14 @@ void DijkstraShortestPathAlg::dump_edges()
 	m_pDirectGraph->dump_edges();
 }
 
-void DijkstraShortestPathAlg::populateAGnodes(double Budget)
+void DijkstraShortestPathAlg::populateAGnodes()
 {
 	AGnodes.clear();
 	AG_subgraph.clear();
 	map<int, set<int>> temp;
 	AG_sg_edges.assign(Destinations.size(), temp);
 	AGnodes.insert(make_pair(origin, 0.0));
+	AGnodesID.insert(make_pair(origin->getID(), 0.0));
 	set<pair<BaseVertex*,double> > temp_set;
 
 	//Subgraphs share the initial node
@@ -678,6 +679,10 @@ void DijkstraShortestPathAlg::populateAGnodes(double Budget)
 	cout << "Destination_order:" << Destinations_order << endl;
 	for (auto path : AGpaths)
 	{
+		/*cout<<"path:";
+		for (auto node : path)
+			cout<<node->getID()<<",";
+		cout<<endl;*/
 		double cost = 0;
 		//Get destination order for main
 		size_t dest = 0;
@@ -693,21 +698,22 @@ void DijkstraShortestPathAlg::populateAGnodes(double Budget)
 		{
 			double parent_cost=cost;
 			cost += m_pDirectGraph->get_edge_weight(path[node - 1], path[node]);
-			AGnodes.insert(make_pair(path[node], cost));
+			//AGnodes.insert(make_pair(path[node], cost));
+			//AGnodesID.insert(make_pair(path[node]->getID(), cost));
 			AG_subgraph[dest].insert(make_pair(path[node], cost));
 			AG_edges_bw[make_pair(path[node]->getID(), cost)].insert(make_pair(path[node-1]->getID(),parent_cost));
 			AG_Edges[path[node - 1]->getID()].insert(path[node]->getID());
 			AG_sg_edges[dest][path[node - 1]->getID()].insert(path[node]->getID());
-			cout << "AG_Node:" << path[node]->getID() << ",cost:" << cost << endl;
-			cout << "AG_subgraph[" << dest << "]:" << path[node]->getID() << ",cost:" << cost;
-			cout << ",Destination:" << path.back()->getID() << endl;
+			//cout << "AG_Node:" << path[node]->getID() << ",cost:" << cost << endl;
+			//cout << "AG_subgraph[" << dest << "]:" << path[node]->getID() << ",cost:" << cost;
+			//cout << ",Destination:" << path.back()->getID() << endl;
 		}
 		AG_destinations.insert(make_pair(path.back(), cost));
-		cout << "AG_destinations[" << dest << "]:" << path.back()->getID() << ",cost:" << cost<<endl;
+		//cout << "AG_destinations[" << dest << "]:" << path.back()->getID() << ",cost:" << cost<<endl;
 	}
 }
 
-void DijkstraShortestPathAlg::expand_AG(double Budget)
+/*void DijkstraShortestPathAlg::expand_AG(double Budget)
 {
 	//cout << "Budget:" << Budget << endl;
 	//std::set<pair<BaseVertex*,double> > AGnodes;
@@ -722,8 +728,8 @@ void DijkstraShortestPathAlg::expand_AG(double Budget)
 
 			}
 		}
-	}*/
-}
+	}
+}*/
 void DijkstraShortestPathAlg::printAGFile()
 {
 	set<pair<pair<int, int>, pair<int, int>>> seen;
@@ -785,6 +791,7 @@ void DijkstraShortestPathAlg::printAGFile()
 }
 void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, float Budget,bool acyclic, bool grandparent_check)
 {
+	static int path_counter=0;
 	//cout<<"AG,source:,"<<source->getID()<<",sink:,"<<sink->getID()<<endl;
 	//cout<<"Budget:"<<Budget<<endl;
 	//We are out of budget
@@ -797,7 +804,10 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
 	}
 	if (source->getID() == sink->getID())
 	{
-		cout << "path found:,";
+		path_counter++;
+		if(path_counter%100==0)
+			cout<<endl<<"sink:,"<<sink->getID()<<",paths_found:"<<path_counter<<endl;
+		/*cout << "path found:,";
 		float cost=0;
 		for (size_t i = 0; i < AGpath.size(); i++)
 		{
@@ -810,7 +820,7 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
 				cout<<cost<<"],";
 			}
 		}
-		cout << endl;
+		//cout << endl;*/
 		/*cout<<"seen:,";
 		for(auto element : AGseen){
 			cout<<element<<",";
@@ -822,15 +832,21 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
 	}
 
     if(acyclic){
-		AGseen.clear();
+		/*AGseen.clear();
+		cout<<"AGseen:";
 		for (auto element : AGpath)
 		{
-			AGseen.insert(element->getID());
+			auto ret=AGseen.insert(element->getID());
+			if (ret.second==false)
+				return;
+			cout<<element->getID()<<",";
 		}
+		cout<<endl;*/
 
 		if (stuck(source, sink))
 		{
 			//cout<<"stuck, returning"<<endl;
+			AGseen.erase(source->getID());
 			return;
 		}
 	}

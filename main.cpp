@@ -121,6 +121,10 @@ unordered_set<int> FO_nodes;
 
 vector<map<pair<pair<int, float>, pair<int, float>>, float>> Alpha;
 map<pair<pair<int, float>, pair<int, float> >, float> C_LambdaAbs;
+vector<float> barX;
+float barQ=0.9;
+int target_destination=0;
+double epsilon=pow(0.1,20);
 //std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
 
 
@@ -640,6 +644,7 @@ void create_grid_nodes_from_file()
 }
 void random_orig_and_dest_placement_SaT()
 {
+	cout<<"hola random_orig_and_dest_placement_SaT"<<endl;
 	Destinations.clear();
 	all_destinations.clear();
 	dest_index.clear();
@@ -663,11 +668,32 @@ void random_orig_and_dest_placement_SaT()
 }
 void create_augmented_graph_from_SaT_file()
 { //
-	cout << "hello create_augmented_graph,stocastic GO" << flush << endl;
-	std::ifstream in(input_filename.c_str());
+	cout << "hello create_augmented_graph,stocastic GO1" << flush << endl;
 	std::ifstream in2(input_filename.c_str());
-	lks.reserve(16000);
 	string str;
+	/*
+	if(C>0){
+		auto destinations_filename=input_filename.substr(0,input_filename.length()-4);
+		destinations_filename+="_OD.csv";
+		std::ifstream in(destinations_filename.c_str());
+		cout<<"destinations_filename="<<destinations_filename<<endl;
+		Destinations.clear();
+		while (getline(in, str))
+		{
+			//str.erase(std::remove(str.begin(),str.end(),'\"'),str.end());
+			vector<string> results;
+			boost::split(results, str, boost::is_any_of(","), boost::token_compress_on);
+			if(results[0]=="origin"){
+				start=stoi(results[1]);
+			}
+			else{
+				for(int i=1;i<results.size();i++){
+					Destinations.push_back(stoi(results[i]));
+				}
+			}
+		}
+	}*/
+	lks.reserve(16000);
 	total_nodes = 0;
 	int total_edges = 0;
 
@@ -678,6 +704,7 @@ void create_augmented_graph_from_SaT_file()
 
 	//cout<<"hello1"<<flush<<endl;
 	//First pass to get list of all nodes
+	std::ifstream in(input_filename.c_str());
 	while (getline(in2, str))
 	{
 		vector<string> results;
@@ -694,8 +721,8 @@ void create_augmented_graph_from_SaT_file()
 		ret = nodes_set.insert(stoi(results[1]));
 		if (ret.second == true)
 			total_nodes++;
-		cout << "total_nodes=" << total_nodes << endl;
 	}
+	cout << "total_nodes=" << total_nodes << endl;
 	//If random, choose from nodes_set randomly
 	//if a destination proves unreachable, WE ARE FINISHED
 	//SHOULD FIND A BETTER WAY
@@ -746,9 +773,9 @@ void create_augmented_graph_from_SaT_file()
 		{ //incoming destination edge
 			//Adding reverse edge for backwards dest_to_dest and boundary graphs
 			Link reverse_link{stoi(results[1]), stoi(results[0]), stof(results[2])};
-			cout << "Added reverse link for destination_index:," << dest_index[stoi(results[1])] << ",from:," << stoi(results[1]) << ",to:," << stoi(results[0]) << ",weight:," << stof(results[2]) << endl;
+			//cout << "Added reverse link for destination_index:," << dest_index[stoi(results[1])] << ",from:," << stoi(results[1]) << ",to:," << stoi(results[0]) << ",weight:," << stof(results[2]) << endl;
 		}
-		Link temp_link{stoi(results[0]), stoi(results[1]), stof(results[2])};
+		Link temp_link{stoi(results[0]), stoi(results[1]), 100*round2(stof(results[2]))};
 
 		lks.push_back(temp_link);
 		total_edges++;
@@ -933,11 +960,11 @@ void create_augmented_graph_from_SaT_file()
 					//cout<<"node "<<node<<" is not reachable from start"<<endl;
 					continue;
 				}
-				else
+				/*else
 				{
 					cout << "\treachable node:" << node << ",cost to destination[" << Destinations[dest] << "]:" << Dijkstra_algs_dest_to_dest[dest].get_cost(node);
 					cout << ",distance to start:," << main_dijkstra_alg->get_cost(node) << endl;
-				}
+				}*/
 			}
 		}
 
@@ -956,10 +983,10 @@ void create_augmented_graph_from_SaT_file()
 		{
 			//cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
 			cout<<"grandpatent_check="<<grandparent_check<<endl;
-			main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget,acyclic,grandparent_check);
+			main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
 		}
 		main_dijkstra_alg->printAGFile();
-		main_dijkstra_alg->populateAGnodes(Budget);
+		main_dijkstra_alg->populateAGnodes();
 
 		if (strategy == 0)
 		{
@@ -972,15 +999,26 @@ void create_augmented_graph_from_SaT_file()
 			//main_dijkstra_alg->expand_AG(Budget);
 			calculate_Gibbs_strategy_AG(Beta, Budget);
 		}
-		simulation();
-		exit(0);
 	}
 	else if(stocastic_go_observer)
 	{
+		//Calculate furthest destination to graduate experiments
+		float furthest_destination=0;
+		for (size_t dest = 0; dest < Destinations.size(); dest++){
+			furthest_destination=max(furthest_destination,float(main_dijkstra_alg->get_cost(Destinations[dest])));
+		}
+		//If C is provided, we use it to determine the budget.
+		if(C>0){
+			Budget=float(C)*furthest_destination+1;
+			cout<<"C-based Budget:,"<<Budget<<endl;
+		}
 		//First calculate Lambda
 		for (size_t dest = 0; dest < Destinations.size(); dest++)
 		{
 			Dijkstra_algs_dest_to_dest[dest].determine_all_shortest_paths(current_graph_dest_to_dest[dest].get_vertex(Destinations[dest]), -1);
+			//Also populate barX for q calculations
+			barX.push_back(0.5*main_dijkstra_alg->get_cost(Destinations[dest]));
+			cout<<"barX["<<dest<<"]:"<<barX<<endl;
 			for (auto node : nodes_set)
 			{
 				if (!main_dijkstra_alg->is_node_reachable(node))
@@ -990,8 +1028,8 @@ void create_augmented_graph_from_SaT_file()
 				}
 				else
 				{
-					cout << "\treachable node:" << node << ",cost to destination[" << Destinations[dest] << "]:" << Dijkstra_algs_dest_to_dest[dest].get_cost(node);
-					cout << ",distance to start:," << main_dijkstra_alg->get_cost(node) << endl;
+					//cout << "\treachable node:" << node << ",cost to destination[" << Destinations[dest] << "]:" << Dijkstra_algs_dest_to_dest[dest].get_cost(node);
+					//cout << ",distance to start:," << main_dijkstra_alg->get_cost(node) << endl;
 				}
 			}
 		}
@@ -1010,11 +1048,11 @@ void create_augmented_graph_from_SaT_file()
 		for (size_t dest = 0; dest < Destinations.size(); dest++)
 		{
 			//cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
-			cout<<"grandpatent_check="<<grandparent_check<<endl;
-			main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget,acyclic,grandparent_check);
+			cout<<"grandparent_check="<<grandparent_check<<",acyclic_check:"<<acyclic<<endl;
+			main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
 		}
 		main_dijkstra_alg->printAGFile();
-		main_dijkstra_alg->populateAGnodes(Budget);
+		main_dijkstra_alg->populateAGnodes();
 		
 		if (strategy == 0)
 		{
@@ -1027,7 +1065,7 @@ void create_augmented_graph_from_SaT_file()
 			//main_dijkstra_alg->expand_AG(Budget);
 			calculate_Gibbs_strategy_AG(Beta, Budget);
 		}
-		cout<<"calling calculate_observer_lambda"<<flush<<endl;
+		//cout<<"calling calculate_observer_lambda"<<flush<<endl;
 
 		//For now the lambda(d) distribution is all destinations are equally probable
 		vector<float> dest_dist;
@@ -1038,21 +1076,29 @@ void create_augmented_graph_from_SaT_file()
 		for(size_t dest=0;dest<Destinations.size();dest++){
 			lambda_obs[dest][make_pair(start,0)]=dest_dist[dest];
 		}
-
-        calculate_observer_lambda(start,0);
+		auto timestart = std::chrono::high_resolution_clock::now();
+		cout<<"calling calculate_observer_lambda"<<flush<<endl;
+		calculate_observer_lambda(start,0);
+		auto end_time = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> diff = end_time - timestart;
+		auto currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
+		cout << "calculate_observer_lambda_runtime:,"<< currentTime <<endl;
 		//For zeta, we recursively iterate backwards from each destination node
+		cout<<"calling calculate_observer_zeta"<<flush<<endl;
 		calculate_observer_zeta();
-		/*for(size_t dest=0;dest<Destinations.size();dest++){
-			for(auto node : (*AG_Dest_Nodes)[dest]){
-				auto node2=make_pair(node.first->getID(),node.second);
-				calculate_observer_zeta(node2,dest);
-				exit(0);
-			}
-		}*/
+		//calculate target's real path
+		cout<<"calling simulation_observer"<<flush<<endl;
+		simulation_observer();
+		cout<<"target_destination:"<<target_destination<<endl;
+		//timings
+		end_time = std::chrono::high_resolution_clock::now();
+		diff = end_time - orig_start_time;
+		auto overall_time = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
+		cout<<"overall_runtime:,"<<overall_time<<endl;
+
+		auto temp_start_time = chrono::high_resolution_clock::now();
 		exit(0);
 		//Now calculate lambda for all states in the AG
-		simulation();
-		exit(0);
 	}
 }
 void calculate_observer_lambda(int current_node,float current_cost){
@@ -1077,7 +1123,10 @@ void calculate_observer_lambda(int current_node,float current_cost){
 			if(Alpha[dest].count(key)<1){
 				continue;//skip 0 prob edges
 			}
-		    cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<endl;
+			else if(Alpha[dest][key]<epsilon){
+				continue;//or quasi-0
+			}
+		    //cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<endl;
 			denominator[dest_node]+=Alpha[dest][key]*lambda_obs[dest][make_pair(current_node,current_cost)];
 			//numerator[make_pair(dest,dest_node)]=(Alpha[dest][key]*(*dest_dist)[dest]);
 			numerator[make_pair(dest,dest_node)]=Alpha[dest][key]*lambda_obs[dest][make_pair(current_node,current_cost)];
@@ -1093,14 +1142,17 @@ void calculate_observer_lambda(int current_node,float current_cost){
 			if(Alpha[dest].count(key)<1){
 				continue;//skip 0 prob edges
 			}
-		    cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<",";
-			cout<<"numerator:,"<<numerator[make_pair(dest,dest_node)]<<",denominator:,"<<denominator[dest_node]<<endl;
+			else if(Alpha[dest][key]<epsilon){
+				continue;//or quasi-0
+			}
+		    //cout<<"dest_node:["<<Destinations[dest]<<"]["<<dest_node<<","<<cost_child<<"]"<<",";
+			//cout<<"numerator:,"<<numerator[make_pair(dest,dest_node)]<<",denominator:,"<<denominator[dest_node]<<endl;
 			lambda_obs[dest][make_pair(dest_node,cost_child)]=numerator[make_pair(dest,dest_node)]/denominator[dest_node];
 			C_LambdaAbs[key]=denominator[dest_node];
-			cout<<"lambda,\u03BB["<<Destinations[dest]<<"]"<<"["<<dest_node<<","<<cost_child<<"]:,"<<lambda_obs[dest][make_pair(dest_node,cost_child)]<<endl;
-			cout<<"Clambda["<<current_node<<","<<current_cost<<"]["<<dest_node<<","<<cost_child<<"]="<<C_LambdaAbs[key]<<endl;
+			//cout<<"lambda,\u03BB["<<Destinations[dest]<<"]"<<"["<<dest_node<<","<<cost_child<<"]:,"<<lambda_obs[dest][make_pair(dest_node,cost_child)]<<endl;
+			//cout<<"Clambda["<<current_node<<","<<current_cost<<"]["<<dest_node<<","<<cost_child<<"]="<<C_LambdaAbs[key]<<endl;
 			Active_AG.insert(make_pair(dest_node,cost_child));
-			cout<<"Active_AG["<<dest_node<<","<<cost_child<<"]"<<endl;
+			//cout<<"Active_AG["<<dest_node<<","<<cost_child<<"]"<<endl;
             calculate_observer_lambda(dest_node,cost_child);
 		}
 	}
@@ -1110,7 +1162,7 @@ void calculate_observer_zeta(){
 	auto BW_AG_Edges = main_dijkstra_alg->getAGEdgesBw();
 	auto destination_nodes=main_dijkstra_alg->getAGDestinationNodes();
 	stack<pair<int,float> > pending;
-	cout<<"\tCalculate_observer_zeta"<<endl;
+	//cout<<"\tCalculate_observer_zeta"<<endl;
 	//ForEach s in destinations add zeta value of 0 and add destinations to queue
 	for(auto dest_node : *destination_nodes){
 		auto s=make_pair(dest_node.first->getID(),dest_node.second);
@@ -1119,16 +1171,16 @@ void calculate_observer_zeta(){
 		}
 		zeta_obs[s]=0;
 		pending.push(s);
-		cout<<"\tAdding destination ["<<s.first<<","<<s.second<<"] to stack"<<endl;
+		//cout<<"\tAdding destination ["<<s.first<<","<<s.second<<"] to stack"<<endl;
 	}
 	while(!pending.empty()){
 		auto current_node=pending.top();
-		cout<<"\tcurrent_node:"<<current_node.first<<","<<current_node.second<<endl;
+		//cout<<"\tcurrent_node:"<<current_node.first<<","<<current_node.second<<endl;
 		//If z_s is known, then pop it from pending stack
 		//And add AG parents as long as there is a non-zero lambda_obs value
 		if(zeta_obs.find(current_node)!=zeta_obs.end()){
-			cout<<"\tCase 1, zeta is known for node:"<<current_node.first<<","<<current_node.second<<",adding children nodes:"<<endl;
-			cout<<"Removing1 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
+			//cout<<"\tCase 1, zeta is known for node:"<<current_node.first<<","<<current_node.second<<",adding children nodes:"<<endl;
+			//cout<<"Removing1 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
 			pending.pop();
 			//Add parent nodes to stack
 		    for (auto parent_node : (*BW_AG_Edges)[current_node]){
@@ -1137,7 +1189,7 @@ void calculate_observer_zeta(){
 				}
 				if(zeta_obs.find(parent_node)==zeta_obs.end()){//parent node has no zeta so add to stack
 					pending.push(parent_node);
-					cout<<"\t\tCase 2, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
+					//cout<<"\t\tCase 2, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
 					continue;
 				}
 			}
@@ -1150,38 +1202,38 @@ void calculate_observer_zeta(){
 		bool ready=true;
 		for (auto dest_node : (*AG_Edges)[current_node.first]){
 			auto current_vertex = main_graph.get_vertex(current_node.first);
-			cout<<"current_vertex:"<<current_vertex->getID()<<flush<<endl;
+			//cout<<"current_vertex:"<<current_vertex->getID()<<flush<<endl;
 			auto dest_vertex = main_graph.get_vertex(dest_node);
-			cout<<"dest_vertex:"<<dest_vertex->getID()<<flush<<endl;
+			//cout<<"dest_vertex:"<<dest_vertex->getID()<<flush<<endl;
 			float cost_child=current_node.second + main_graph.get_edge_weight(current_vertex, dest_vertex);
 			if(Active_AG.count(make_pair(dest_node,cost_child))<1){
-				cout<<"node["<<dest_node<<","<<cost_child<<"] is missing from current AG, skipping"<<endl;
+				//cout<<"node["<<dest_node<<","<<cost_child<<"] is missing from current AG, skipping"<<endl;
 				continue;//Skipping nodes not reached by current strategy
 			}
 			//auto key = make_pair(make_pair(current_node, current_cost), make_pair(dest_node, cost_child));
 			auto ag_dest_node=make_pair(dest_node,cost_child);
 			if(zeta_obs.find(ag_dest_node)==zeta_obs.end()){//child node has no zeta so add to queue
-				cout<<"\t\tadding child node:["<<ag_dest_node.first<<","<<ag_dest_node.second<<"]"<<endl;
+				//cout<<"\t\tadding child node:["<<ag_dest_node.first<<","<<ag_dest_node.second<<"]"<<endl;
 				pending.push(ag_dest_node);
 				ready=false;//No break, we evaluate all children nodes so we can add any which have priority
 			}
 		}
 		if(ready){
-			cout<<"Calculate Zeta,all children zetas available"<<endl;
+			//cout<<"Calculate Zeta,all children zetas available"<<endl;
 			zeta_obs[current_node]=calculate_zeta(current_node);
-			cout<<"zeta["<<current_node.first<<","<<current_node.second<<"]:,"<<zeta_obs[current_node]<<endl;
-			cout<<"Removing2 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
+			//cout<<"zeta["<<current_node.first<<","<<current_node.second<<"]:,"<<zeta_obs[current_node]<<endl;
+			//cout<<"Removing2 node:["<<pending.top().first<<","<<pending.top().second<<"]"<<endl;
 			pending.pop();
 			//Add parent nodes with pending zeta calculation
 			for (auto parent_node : (*BW_AG_Edges)[current_node]){
-				cout<<"\tevaluating for adding parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
+				//cout<<"\tevaluating for adding parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
 				if(Active_AG.count(parent_node)<1){
-					cout<<"\tskipping parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
+					//cout<<"\tskipping parent_node:["<<parent_node.first<<","<<parent_node.second<<"]"<<endl;
 					continue;//Skipping nodes not reached by current strategy
 				}
 				if(zeta_obs.find(parent_node)==zeta_obs.end()){//parent node has no zeta so add to stack
 					pending.push(parent_node);
-					cout<<"\t\tCase 2a, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
+					//cout<<"\t\tCase 2a, zeta is missing for parent node:"<<parent_node.first<<","<<parent_node.second<<endl;
 					continue;
 				}
 
@@ -1192,31 +1244,46 @@ void calculate_observer_zeta(){
 	ofstream myfile;
 	string filename = "OBS_V" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
+	
+	ofstream myfile2;
+	string filename2 = "../experiments/OBS_exp_V," + to_string(main_graph.getVertexNum()) + ",_S," + to_string(random_seed) + ",_Bu," + to_string(Budget) + ",_Be," + to_string(Beta) + ".txt";
+	myfile2.open(filename2);
+	auto key=make_pair(start,0.0);
+	myfile2<<"zeta,\u03B6[,"<<key.first<<","<<key.second<<",]=,"<<zeta_obs[key]<<endl;
 	for(auto node : zeta_obs){
-		myfile<<"zeta,\u03B6["<<node.first.first<<","<<node.first.second<<"]="<<node.second<<endl;
+		if(debug)
+			myfile<<"zeta,\u03B6["<<node.first.first<<","<<node.first.second<<"]="<<node.second<<","<<calculate_term1(node.first)<<endl;
 	}
 	for(size_t dest=0;dest<Destinations.size();dest++){
 		for(auto node : lambda_obs[dest]){
-			myfile<<"lambda,\u03BB|^{["<<node.first.first<<","<<node.first.second<<"]}"<<"("<<Destinations[dest]<<")="<<node.second<<endl;
+			if(debug)
+				myfile<<"lambda,\u03BB|^{["<<node.first.first<<","<<node.first.second<<"]}"<<"("<<Destinations[dest]<<")="<<node.second<<endl;
 		}
 	}
 	for(size_t dest=0;dest<Destinations.size();dest++){
 		for(auto node : nodes_set){
 			if(node==start){
-				myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+				if(debug)
+					myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
 			}
 			else{
-				myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<Dijkstra_algs_dest_to_dest[dest].get_cost(node)<<endl;
+				//NOTE:If we use the new q function, we need to print it out for each
+				//AG node
+				for(auto node : Active_AG){
+				//myfile<<"q(\u03B4("<<node<<","<<Destinations[dest]<<")="<<Dijkstra_algs_dest_to_dest[dest].get_cost(node)<<endl;
+					if(debug)
+						myfile<<"q(\u03B4("<<node.first<<","<<node.second<<","<<Destinations[dest]<<")="<<calculate_q(node,dest)<<endl;
+				}
 			}
 		}
 	}
-		
-	for(auto node : C_LambdaAbs){
+	if(debug){
+		for(auto node : C_LambdaAbs){
 			myfile<<"Lambda,\u039B_{["<<node.first.first.first<<","<<node.first.first.second<<"]["<<node.first.second.first<<","<<node.first.second.second<<"]}="<<node.second<<endl;
-	}
-	for(auto node : X_Hat){
-
-            myfile<<"X_Hat,X̂["<<node.first<<","<<node.second<<"]"<<endl;
+		}
+		for(auto node : X_Hat){
+			myfile<<"X_Hat,X̂["<<node.first<<","<<node.second<<"]"<<endl;
+		}
 	}
 	//Xcrit is calculated as 
 	auto paths=main_dijkstra_alg->getAGpaths();
@@ -1240,21 +1307,23 @@ void calculate_observer_zeta(){
 		pair<int,float> chosen_AG_dest=make_pair(0,0.0);
 		for (size_t dest = 0; dest < Destinations.size(); dest++){
 			if(node.first==start){
-				if(lambda_obs[dest][node]*float(main_dijkstra_alg->get_cost(Destinations[dest]))>=zeta_obs[node]){
+				if(lambda_obs[dest][node]*calculate_q(make_pair(start,0),dest)>=zeta_obs[node]){
 					chosen_AG_dest=make_pair(Destinations[dest],node.second+main_dijkstra_alg->get_cost(Destinations[dest])>chosen_AG_dest.second);
 				}
 			}
 			else{
-				if(lambda_obs[dest][node]*float(Dijkstra_algs_dest_to_dest[dest].get_cost(node.first))>=zeta_obs[node]){
+				if(lambda_obs[dest][node]*calculate_q(node,dest)>=zeta_obs[node]){
 					chosen_AG_dest=make_pair(Destinations[dest],node.second+Dijkstra_algs_dest_to_dest[dest].get_cost(node.first));
 				}
 			}
 		}
-		myfile<<"X_Crit,X̂^{crit}["<<node.first<<","<<node.second<<"],ChosenDest["<<chosen_AG_dest.first<<","<<chosen_AG_dest.second<<"]"<<endl;
-		chosen_AG_dest;
+		if(debug)
+			myfile<<"X_Crit,X̂^{crit}["<<node.first<<","<<node.second<<"],ChosenDest["<<chosen_AG_dest.first<<","<<chosen_AG_dest.second<<"]"<<endl;
+		myfile2<<"X_Crit[,"<<node.first<<","<<node.second<<",],ChosenDest[,"<<chosen_AG_dest.first<<","<<chosen_AG_dest.second<<",]"<<endl;
 		}
 
 	myfile.close();
+	myfile2.close();
 }
 float calculate_zeta(pair<int,float> s){
 	auto AG_Edges = main_dijkstra_alg->getAGEdges();
@@ -1267,12 +1336,13 @@ float calculate_zeta(pair<int,float> s){
 		}
 		//cout<<"\tlambda_obs["<<dest<<"]["<<s.first<<","<<s.second<<"]:"<<lambda_obs[dest][s]<<endl;
 		//cout<<"\tdelta["<<dest<<"]="<<Dijkstra_algs_dest_to_dest[dest].get_cost(s.first)<<endl;
-		if(s.first==start){
+		/*if(s.first==start){
 			maxD=max(maxD,lambda_obs[dest][s]*float(main_dijkstra_alg->get_cost(Destinations[dest])));
 		}
 		else{
 			maxD=max(maxD,lambda_obs[dest][s]*float(Dijkstra_algs_dest_to_dest[dest].get_cost(s.first)));
-		}
+		}*/
+		maxD=max(maxD,lambda_obs[dest][s]*calculate_q(s,dest));
 	}
 
 	float zeta=maxD;
@@ -1297,6 +1367,41 @@ float calculate_zeta(pair<int,float> s){
 	zeta=max(zeta,sum);
 	return zeta;
 }
+float calculate_term1(pair<int,float> s){
+	//Calculate term1 for eq. 14
+	float maxD=0;
+	for (size_t dest = 0; dest < Destinations.size(); dest++){
+		if(lambda_obs[dest].find(s)==lambda_obs[dest].end()){
+			continue;//Skipping nodes not in current AG-SubGraph
+		}
+		maxD=max(maxD,lambda_obs[dest][s]*calculate_q(s,dest));
+	}
+	return maxD;
+}
+
+
+//q(x) = x \times \frac{\bar{q}}{\bar{x}} if x \in [0, \bar{x}]
+//q(x) = \bar{q} if x > \bar{x}
+//where you can set \bar{q} = 0.9 and \bar{x} half of the distance between the origin and the destination.
+float calculate_q(pair<int,float> node,int dest){
+	//cout<<"calling calculate_q"<<endl;
+	float x=0;
+	if(node.first==start){
+		x=main_dijkstra_alg->get_cost(start);
+	}
+	else{
+		x=Dijkstra_algs_dest_to_dest[dest].get_cost(node.first);
+	}
+
+	if(x>barX[dest]){
+		//cout<<"Far from dest("<<Destinations[dest]<<"),x="<<x<<",q["<<node.first<<","<<node.second<<"]=barQ="<<barQ<<endl;
+		return barQ;
+	}
+	else{
+		//cout<<"Close from dest("<<Destinations[dest]<<"),x="<<x<<",q["<<node.first<<","<<node.second<<"]=barQ="<<x*(barQ/barX[dest])<<endl;
+		return x*(barQ/barX[dest]);
+	}
+}
 
 void calculate_min_path_strategy_AG()
 {
@@ -1316,12 +1421,12 @@ void calculate_min_path_strategy_AG()
 
 	for (size_t dest = 0; dest < Destinations.size(); dest++)
 	{
-		cout << "\tworking on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
-		if (Budget < main_dijkstra_alg->get_cost(Destinations[dest]))
+		//cout << "\tworking on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
+		/*if (Budget < main_dijkstra_alg->get_cost(Destinations[dest]))
 		{
-			cerr << "Budget is smaller than optimal distance from origin to destination!!!" << endl;
+			//cerr << "Budget is smaller than optimal distance from origin to destination!!!" << endl;
 			exit(1);
-		}
+		}*/
 		for (auto node : (*AG_Nodes)[dest])
 		{
 			double OptPaths = 0;
@@ -1329,28 +1434,37 @@ void calculate_min_path_strategy_AG()
 			//if(all_destinations.count(node.first->getID())>0){
 			//	continue;//skip destinations as origin nodes
 			//}
-			cout << "\t\torig_vertex1:" << orig_vertex->getID();
-			cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
+			//cout << "\t\torig_vertex1:" << orig_vertex->getID();
+			//cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
 
 			for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()])
 			{
-				cout << "\t\t\tchild_node:," << child_node << endl;
+				//cout << "\t\t\tchild_node:," << child_node << endl;
 				auto dest_vertex = main_graph.get_vertex(child_node);
-				cout << "\t\tcost=" << node.second << "+" << main_graph.get_edge_weight(orig_vertex, dest_vertex);
-				cout << "+" << Dijkstra_algs_dest_to_dest[dest].get_cost(child_node) << endl;
+				//cout << "\t\tcost=" << node.second << "+" << main_graph.get_edge_weight(orig_vertex, dest_vertex);
+				//cout << "+" << Dijkstra_algs_dest_to_dest[dest].get_cost(child_node) << endl;
 				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
 				double cost = x + Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
 				//Probability is 0 if path is not optimal
-				cout << "\t\t\tcost:" << cost << ",optimal_cost:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
+				//cout << "\t\t\tcost:" << cost << ",optimal_cost:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
 				if (cost > main_dijkstra_alg->get_cost(Destinations[dest]))
 				{
-					cout << "\t\t\tpath is not optimal" << endl;
+					//cout << "\t\t\tpath is not optimal" << endl;
 					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
 					//make_pair(child_node,x))]=0;
 				}
 				else
 				{
-					cout << "\t\t\tpath is optimal" << endl;
+					if((*AG_Nodes)[dest].count(make_pair(dest_vertex,x))==0){
+						if(debug){
+							cout<<"AGnode["<<child_node<<","<<x<<"] not in any valid path"<<endl;
+							continue;
+						}
+					}
+					else{
+						cout<<"AGnode["<<child_node<<","<<x<<"] belongs to valid path for destination:"<<Destinations[dest]<<endl;
+					}
+					//cout << "\t\t\tpath is optimal" << endl;
 					Alpha[dest][make_pair(make_pair(node.first->getID(), node.second),
 										  make_pair(child_node, x))] = 1.0;
 					OptPaths++;
@@ -1361,17 +1475,19 @@ void calculate_min_path_strategy_AG()
 			for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()])
 			{
 				auto dest_vertex = main_graph.get_vertex(child_node);
-				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
+				float x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
 				auto key=make_pair(make_pair(node.first->getID(), node.second),make_pair(child_node, x));
 				if(Alpha[dest].count(key)<1){
 					continue;//skip 0 prob edges
 				}
 
 				Alpha[dest][key] = 1.0 / OptPaths;
-				cout << "Alpha[" << Destinations[dest] << ",(" << node.first->getID() << "," << node.second << ")->(" << child_node;
-				cout << "," << x << ")]:" << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
-				myfile << Destinations[dest] << "," << node.first->getID() << "," << node.second << "," << child_node;
-				myfile << "," << x << "," << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
+				//cout << "Alpha[" << Destinations[dest] << ",(" << node.first->getID() << "," << node.second << ")->(" << child_node;
+				//cout << "," << x << ")]:" << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
+				//cout << "," << x << ")]:" << Alpha[dest][key] << endl;
+				//myfile << Destinations[dest] << "," << node.first->getID() << "," << node.second << "," << child_node;
+				//myfile << "," << x << "," << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
+				myfile << "," << x << "," << Alpha[dest][key]<<endl;
 			}
 		}
 	}
@@ -1396,44 +1512,60 @@ void calculate_Gibbs_strategy_AG(double beta = 0.5, double budget = 100)
 
 	for (size_t dest = 0; dest < Destinations.size(); dest++)
 	{
-		cout << "\tworking on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
-		if (Budget < main_dijkstra_alg->get_cost(Destinations[dest]))
+		cout << "\tGibbs,working on dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
+		double max_cost=budget*main_dijkstra_alg->get_cost(Destinations[dest]);
+		/*if (Budget < main_dijkstra_alg->get_cost(Destinations[dest]))
 		{
 			cerr << "Budget is smaller than optimal distance from origin to destination!!!" << endl;
 			exit(1);
-		}
+		}*/
 		for (auto node : (*AG_Nodes)[dest])
 		{
 			double NormConst = 0;
 			auto orig_vertex = main_graph.get_vertex(node.first->getID());
-			cout << "\t\torig_vertex:" << orig_vertex->getID();
-			cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
+			//cout << "\t\torig_vertex:" << orig_vertex->getID();
+			//cout << ",Edges size:" << (*AG_SG_Edges)[dest][orig_vertex->getID()].size() << endl;
+			if(debug)
+				cout<<"working on Dest:"<<Destinations[dest]<<",parent Alpha node:["<<node.first->getID()<<","<<node.second<<"]"<<endl;
 
 			for (auto child_node : (*AG_SG_Edges)[dest][orig_vertex->getID()])
 			{
-				cout << "\t\t\tchild_node:," << child_node << endl;
+				//cout << "\t\t\tchild_node:," << child_node << endl;
 				auto dest_vertex = main_graph.get_vertex(child_node);
-				cout << "\t\tcost=" << node.second << "+" << main_graph.get_edge_weight(orig_vertex, dest_vertex);
-				cout << "+" << Dijkstra_algs_dest_to_dest[dest].get_cost(child_node) << endl;
+				//cout << "\t\tcost=" << node.second << "+" << main_graph.get_edge_weight(orig_vertex, dest_vertex);
+				//cout << "+" << Dijkstra_algs_dest_to_dest[dest].get_cost(child_node) << endl;
 				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
 				double cost = x + Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
 				//Probability is 0 if path is not feasible
-				cout << "\t\t\tcost:" << cost << ",optimal_cost:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
-				if (cost >= budget)
+				//cout << "\t\t\tcost:" << cost << ",optimal_cost:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
+				if (cost >= max_cost)
 				{
-					cout << "\t\t\tpath is not feasible for budget:" << budget << endl;
-					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second),
-					//make_pair(child_node,x))]=0;
+					//cout << "\t\t\tpath is not feasible for budget:" << budget << endl;
+					//Alpha[dest][make_pair(make_pair(node.first->getID(),node.second), make_pair(child_node,x))]=0;
+					if(debug)
+						cout<<"unfeasible,Dest:"<<Destinations[dest]<<",skipping Alpha node:["<<node.first->getID()<<","<<node.second<<"]->["<<child_node<<","<<x<<"]"<<endl;
 				}
 				else
 				{
-					cout << "\t\t\tpath is feasible" << endl;
+					if((*AG_Nodes)[dest].count(make_pair(dest_vertex,x))==0){
+						if(debug){
+							cout<<"AGnode["<<child_node<<","<<x<<"] not in any valid path"<<endl;
+							continue;
+						}
+					}
+					else if(debug){
+						cout<<"AGnode["<<child_node<<","<<x<<"] belongs to valid path for destination:"<<Destinations[dest]<<endl;
+					}
+					//cout << "\t\t\tpath is feasible" << endl;
+					//cout<<"Dest:"<<Destinations[dest]<<",feasible Alpha node:["<<node.first->getID()<<","<<node.second<<"]->["<<child_node<<","<<x<<"]"<<endl;
 					auto key = make_pair(make_pair(node.first->getID(), node.second),
 										 make_pair(child_node, x));
 					double exponent = main_graph.get_edge_weight(orig_vertex, dest_vertex) +
 									  Dijkstra_algs_dest_to_dest[dest].get_cost(child_node);
-					Alpha[dest][key] = exp(-beta * (exponent));
-					NormConst += Alpha[dest][key];
+					Alpha[dest][key] = exp(-beta * (exponent/1000.0));
+					//cout<<"Dest:"<<Destinations[dest]<<",feasible Alpha node:["<<node.first->getID()<<","<<node.second<<"]->["<<child_node<<","<<x<<"]"<<",exponent:"<<exponent<<endl;
+					if (Alpha[dest][key] > epsilon)
+						NormConst += Alpha[dest][key];
 				}
 			}
 
@@ -1444,31 +1576,42 @@ void calculate_Gibbs_strategy_AG(double beta = 0.5, double budget = 100)
 				double x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
 				auto key = make_pair(make_pair(node.first->getID(), node.second),
 									 make_pair(child_node, x));
+				//cout<<"Dest:"<<Destinations[dest]<<",feasible Alpha node:["<<node.first->getID()<<","<<node.second<<"]->["<<child_node<<","<<x<<"]"<<",exp:"<<Alpha[dest][key]<<endl;
 
-				if (Alpha[dest][key] > 0)
+				if (Alpha[dest][key] > epsilon)
 				{
 					Alpha[dest][key] = Alpha[dest][key] / NormConst;
-					cout << "Alpha[" << Destinations[dest] << ",(" << node.first->getID() << "," << node.second << ")->(" << child_node;
-					cout << "," << x << ")]:" << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
-					myfile << Destinations[dest] << "," << node.first->getID() << "," << node.second << "," << child_node;
-					myfile << "," << x << "," << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
+					if(debug){
+						cout << "Alpha[" << Destinations[dest] << ",(" << node.first->getID() << "," << node.second << ")->(" << child_node;
+						cout << "," << x << ")]:" << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << ",NormConst:"<<NormConst<<endl;
+					}
+					if(debug){
+						myfile <<Destinations[dest] << "," << node.first->getID() << "," << node.second << "," << child_node;
+						myfile << "," << x << "," << Alpha[dest][make_pair(make_pair(node.first->getID(), node.second), make_pair(child_node, x))] << endl;
+					}
+				}
+				else{
+					//cout<<"Erasing Alpha["<<dest<<"] key:["<<key.first.first<<","<<key.first.second<<"]["<<key.second.first<<","<<key.second.second<<"]"<<endl;
+					Alpha[dest].erase(key);
 				}
 			}
 		}
+		cout << "\tGibbs,Finished with dest:," << Destinations[dest] << ",optimal distance:" << main_dijkstra_alg->get_cost(Destinations[dest]) << endl;
 	}
 	myfile.close();
 }
 
 void simulation()
 {
+	cout<<"hello simulation"<<flush<<endl;
 	auto AG_Edges = main_dijkstra_alg->getSGEdges();
 	//1st choose Destination
 	srand(random_seed);
 	int dest = rand() % Destinations.size();
-	int d = Destinations[dest];
+	target_destination=Destinations[dest];
 	cout << endl
-		 << "Simulation, randomly selected destination:" << d << endl;
-	cout << "Simulated path:" << start;
+		 << "Simulation, randomly selected destination:," << target_destination << endl;
+	cout << "Simulated path:" << flush<<start;
 	int current_node = start;
 	float r;
 	int counter = 0;
@@ -1480,6 +1623,7 @@ void simulation()
 	myfile << start;
 	while (true)
 	{
+		cout<<"hola"<<fflush<<endl;
 		r = ((float)rand() / (RAND_MAX));
 		float select_prob = 0;
 		for (auto dest_node : (*AG_Edges)[dest][current_node])
@@ -1489,19 +1633,92 @@ void simulation()
 			float cost2 = cost1 + main_graph.get_edge_weight(current_vertex, dest_vertex);
 			auto key = make_pair(make_pair(current_node, cost1), make_pair(dest_node, cost2));
 			select_prob += Alpha[dest][key];
-			//cout<<"\tAlpha["<<Destinations[dest]<<",("<<current_node<<","<<cost1<<")->("<<dest_node;
-			//cout<<","<<cost2<<")]:"<<Alpha[dest][key];
-			//cout<<"\trandom_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
+			cout<<"\tAlpha["<<Destinations[dest]<<",("<<current_node<<","<<cost1<<")->("<<dest_node;
+			cout<<","<<cost2<<")]:"<<Alpha[dest][key];
+			cout<<"\trandom_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
 			if (r <= select_prob)
 			{ //
 				current_node = dest_node;
 				cost1 = cost2;
-				//cout<<"\tchild is chosen,new current node:("<<current_node<<","<<cost2<<")"<<endl;
+				cout<<"\tchild is chosen,new current node:("<<current_node<<","<<cost2<<")"<<endl;
 				cout << "," << current_node;
 				myfile << "," << current_node;
 				if (current_node == Destinations[dest])
 				{
 					//cout<<"Finished, destination found"<<endl;
+					cout << endl;
+					myfile << endl;
+					return;
+				}
+				break;
+			}
+		}
+	}
+	myfile.close();
+}
+void simulation_observer()
+{
+	cout<<"hello simulation_observer"<<flush<<endl;
+	auto AG_Edges = main_dijkstra_alg->getSGEdges();
+	//1st choose Destination
+	srand(random_seed);
+	int dest = rand() % Destinations.size();
+	target_destination=Destinations[dest];
+	cout << endl
+		 << "Simulation_obs, randomly selected destination:" << target_destination << fflush<<endl;
+	cout << "Simulated path:" << start;
+	int current_node = start;
+	float r;
+	int counter = 0;
+	float cost1 = 0;
+	//Create output file for visualization
+	ofstream myfile;
+	string filename = "path_" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
+	myfile.open(filename);
+	myfile << start;
+	/*auto map1=Alpha[dest];
+    map<pair<pair<int, float>, pair<int, float>>, float>::iterator it;
+	for (it = map1.begin(); it != map1.end(); it++){
+		cout<<"Alpha_key:"<<it->first.first.first;
+		cout<<","<<it->first.first.second<<","<<it->first.second.first<<","<<it->first.second.second<<endl;
+	}*/
+while (true)
+	{
+		if(counter++>10000){
+			cerr<<"Simulation error, stuck, debug AG!"<<endl;
+			break;
+		}
+		r = ((float)rand() / (RAND_MAX));
+		float select_prob = 0;
+		for (auto dest_node : (*AG_Edges)[dest][current_node])
+		{
+			auto current_vertex = main_graph.get_vertex(current_node);
+			auto dest_vertex = main_graph.get_vertex(dest_node);
+			float cost2 = cost1 + main_graph.get_edge_weight(current_vertex, dest_vertex);
+			auto key = make_pair(make_pair(current_node, cost1), make_pair(dest_node, cost2));
+			//Skip forbidden edges
+			if(Alpha[dest].find(key)==Alpha[dest].end()){
+				cout<<"skipping Alpha["<<dest<<"] key:["<<key.first.first<<","<<key.first.second<<"]["<<key.second.first<<","<<key.second.second<<"]"<<endl;
+				continue;
+			}
+			select_prob += Alpha[dest][key];
+			cout<<"\tAlpha["<<Destinations[dest]<<",("<<current_node<<","<<cost1<<")->("<<dest_node;
+			cout<<","<<cost2<<")]:"<<Alpha[dest][key];
+			cout<<"\trandom_throw:,"<<r<<",select_prob:"<<select_prob<<",dest_node:"<<dest_node<<endl;
+			if(select_prob==0){
+				cerr<<"Select_prob cannot be 0!"<<endl;
+				exit(1);
+			}
+			if (r <= select_prob)
+			{ //
+				current_node = dest_node;
+				cost1 = cost2;
+				cout<<"\tchild is chosen,new current node:("<<current_node<<","<<cost2<<")"<<endl;
+				cout << "," << current_node;
+				myfile << "," << current_node;
+				if (current_node == Destinations[dest])
+				{
+					cout<<"Finished, destination found"<<endl;
 					cout << endl;
 					myfile << endl;
 					return;
@@ -1573,7 +1790,7 @@ void create_grid_nodes_and_edges_from_SaT_file()
 		//cout<<"dest_index[results[1]]:"<<flush<<stoi(results[1])<<flush<<endl;
 		if (stoi(results[1]) == start)
 		{
-			continue; //skipping origin incomming edges
+			continue; //skipping origin incoming edges
 		}
 		if (stoi(results[0]) == stoi(results[1]))
 		{ //no loops
@@ -1590,9 +1807,9 @@ void create_grid_nodes_and_edges_from_SaT_file()
 			Link reverse_link{stoi(results[1]), stoi(results[0]), stof(results[2])};
 			lks_boundary[dest_index[stoi(results[1])]].push_back(reverse_link);
 			lks_dest[dest_index[stoi(results[1])]].push_back(reverse_link);
-			cout << "Added reverse link for destination_index:," << dest_index[stoi(results[1])] << ",from:," << stoi(results[1]) << ",to:," << stoi(results[0]) << ",weight:," << stof(results[2]) << endl;
+			cout << "Added2 reverse link for destination_index:," << dest_index[stoi(results[1])] << ",from:," << stoi(results[1]) << ",to:," << stoi(results[0]) << ",weight:," << stof(results[2]) << endl;
 		}
-		Link temp_link{stoi(results[0]), stoi(results[1]), stof(results[2])};
+		Link temp_link{stoi(results[0]), stoi(results[1]), 100*round2(stof(results[2]))};
 
 		lks.push_back(temp_link);
 		total_edges++;
@@ -3081,6 +3298,7 @@ void random_dest_and_origin_placement()
 }
 void from_file_random_dest_and_origin_selection()
 {
+	cout<<"hola random_dest_and_origin1"<<endl;
 	srand(random_seed);
 	start = rand() % node_map.size();
 	if (random_origin_only)
@@ -3302,7 +3520,7 @@ int main(int argc, char *argv[])
 		}
 		if (action.find("R=") != string::npos)
 		{
-			if (debug)
+			//if (debug)
 				cout << "Using random destinations" << endl;
 			random_destinations = true;
 			string temp = action.substr(2, action.length());
@@ -4733,4 +4951,8 @@ int main2(int argc, char **argv)
        << goal << "!" << endl;
   return 0;
   
+}
+
+float round2(float n){
+	return roundf(n * 100) / 100;
 }
