@@ -91,6 +91,8 @@ map<pair<int,float>,float > zeta_obs;
 set<pair<int,float> > Active_AG;
 set<pair<int,float> > X_Hat;
 set<pair<int,float> > X_Crit;
+map<pair<int,float>,int > X_Crit_dest;
+bool Observer_Correct=false;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256]; //origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -1308,11 +1310,13 @@ void calculate_observer_zeta(){
 		for (size_t dest = 0; dest < Destinations.size(); dest++){
 			if(node.first==start){
 				if(lambda_obs[dest][node]*calculate_q(make_pair(start,0),dest)>=zeta_obs[node]){
+					X_Crit_dest[node]=Destinations[dest];
 					chosen_AG_dest=make_pair(Destinations[dest],node.second+main_dijkstra_alg->get_cost(Destinations[dest])>chosen_AG_dest.second);
 				}
 			}
 			else{
 				if(lambda_obs[dest][node]*calculate_q(node,dest)>=zeta_obs[node]){
+					X_Crit_dest[node]=Destinations[dest];
 					chosen_AG_dest=make_pair(Destinations[dest],node.second+Dijkstra_algs_dest_to_dest[dest].get_cost(node.first));
 				}
 			}
@@ -1658,6 +1662,7 @@ void simulation()
 }
 void simulation_observer()
 {
+	bool prediction_made=false;
 	cout<<"hello simulation_observer"<<flush<<endl;
 	auto AG_Edges = main_dijkstra_alg->getSGEdges();
 	//1st choose Destination
@@ -1676,6 +1681,7 @@ void simulation_observer()
 	string filename = "path_" + to_string(main_graph.getVertexNum()) + "_S" + to_string(random_seed) + ".txt";
 	myfile.open(filename);
 	myfile << start;
+	int pred_dest=0;
 	/*auto map1=Alpha[dest];
     map<pair<pair<int, float>, pair<int, float>>, float>::iterator it;
 	for (it = map1.begin(); it != map1.end(); it++){
@@ -1693,6 +1699,26 @@ while (true)
 		for (auto dest_node : (*AG_Edges)[dest][current_node])
 		{
 			auto current_vertex = main_graph.get_vertex(current_node);
+			if(!prediction_made){
+				cout<<"checking if X_Crit node,"<<current_vertex->getID()<<",cost1:"<<cost1<<endl;
+				if(X_Crit.count(make_pair(current_vertex->getID(),cost1))>0){
+					pred_dest=X_Crit_dest[make_pair(current_vertex->getID(),cost1)];
+					if(pred_dest==target_destination){
+						Observer_Correct=true;
+						cout<<"Observer prediction is:"<<Observer_Correct<<", X_Crit_Dest==pred_dest:"<<pred_dest<<endl;
+					}
+					else{
+						cout<<"Observer prediction is wrong, "<< pred_dest<<"!="<<target_destination<<endl;
+					}
+					prediction_made=true;
+					//Write down result of prediction, append to file
+					ofstream myfile2;
+					string filename2 = "../experiments/OBS_exp_V," + to_string(main_graph.getVertexNum()) + ",_S," + to_string(random_seed) + ",_Bu," + to_string(Budget) + ",_Be," + to_string(Beta) + ".txt";
+					myfile2.open(filename2,ios::app);
+					myfile2<<"prediction:,"<<Observer_Correct<<endl;
+					myfile2.close();
+					}
+			}
 			auto dest_vertex = main_graph.get_vertex(dest_node);
 			float cost2 = cost1 + main_graph.get_edge_weight(current_vertex, dest_vertex);
 			auto key = make_pair(make_pair(current_node, cost1), make_pair(dest_node, cost2));
