@@ -45,7 +45,7 @@ std::ostream& operator<<(std::ostream& os, const std::set<T>& v)
     for (auto it : v) { 
         os << it; 
         if (it != *v.rbegin()) 
-            os << ", "; 
+            os << ","; 
     } 
     os << "]\n"; 
     return os; 
@@ -69,8 +69,17 @@ void calculate_observer_lambda(int current_node,float current_cost);
 float calculate_zeta(std::pair<int,float> s);
 int main2(int argc, char *argv[]);
 float calculate_q(std::pair<int,float> node,int dest);
+float calculate_q_avg(std::pair<int,float> node,int dest);
 float calculate_term1(std::pair<int,float> s);
+float calculate_term2(std::pair<int,float> s);
 float round2(float n);
 void from_file_random_dest_and_origin_selection();
-
+void calculate_all_subpaths();
+float calculate_q_path(std::pair<int,float> node,int dest,float cost);
+float calculate_q_recursive(std::pair<int,float> node,int dest);//Eq 25
+void random_orig_and_dest_placement_SaT();
+void calculate_min_path_strategy_prefixes();
+float calculate_q_recursive_prefix(unsigned node);
+void simulation_observer_prefix();
+std::pair<unsigned, float> dest_predictor_prefix(unsigned node);
 #endif
