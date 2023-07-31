@@ -60,6 +60,8 @@ struct hash_pair {
         return hash1 ^ hash2; 
     } 
 };
+
+void elapsed_time(std::string method, std::chrono::_V2::system_clock::time_point start_time);
 void calculate_min_path_strategy_AG();
 void calculate_Gibbs_strategy_AG(double beta,double Budget);
 void simulation();
