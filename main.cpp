@@ -958,7 +958,7 @@ void create_prefix_graph_from_SaT_file(){
         //Now run simulation
         //First create a weighted distribution of paths
         size_t startValue = 0;
-        size_t endValue = prob_path.size();
+        size_t endValue = prob_path.size()+1;
         size_t sizeOfVector = endValue - startValue;
         std::vector<size_t> path_index(sizeOfVector);
         generate (
@@ -1904,8 +1904,8 @@ void calculate_min_path_strategy_prefixes(){
             dest_prob_path[destination][counter]=ProbPerDestinationPath[destination]/lambdaDest;
         }
         if(prob_path[counter]>0){
-            //main_dijkstra_alg->print_path(counter);
-            //cout << ",path_prob[" << counter << "]:" << prob_path[counter] << endl;
+            main_dijkstra_alg->print_path(counter);
+            cout << ",path_prob[" << counter << "]:" << prob_path[counter] <<", path_cost"<<main_dijkstra_alg->get_cost_to_dest(0,counter)<< endl;
             //cout << "dest_path_prob[" << destination<<"]["<< counter << "]:" <<dest_prob_path[destination][counter] << endl;
         }
         counter++;
@@ -1919,6 +1919,7 @@ void calculate_min_path_strategy_prefixes(){
 
     //Now calculate probabilty per prefix. Each prefix gets the probability of all possible paths it is part of.
     auto prefixes = main_dijkstra_alg->get_prefixes();
+    cout << "Hola1" << flush<<endl;
     vector<float> prob_per_prefix(prefixes->size(), 0.0);
     vector<vector<float>> dest_prob_per_prefix(Destinations.size(), prob_per_prefix);
     auto paths_per_prefix=main_dijkstra_alg->linkPrefixToPaths();
@@ -1992,9 +1993,10 @@ void calculate_min_path_strategy_prefixes(){
                 auto id = make_pair(pref, pth);
                 lambda_obs_dest_given_prefix[dest][pref] += prefix_prob_path[id];
                 q_given_dest_and_prefix[dest][pref] += prob_per_path_given_dest_and_prefix[dest][id]*main_dijkstra_alg->get_cost_to_dest(pref,pth);
+                cout << "\tpth:," << pth << ",pref:," << pref << ",cost:," << main_dijkstra_alg->get_cost_to_dest(pref, pth) << endl;
             }
-            //cout << "\t lambda_obs_dest_given_prefix[,"<<dest<<",][,"<<pref<<",]:," << lambda_obs_dest_given_prefix[dest][pref] << flush<<endl;
-            //cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
+            cout << "\t lambda_obs_dest_given_prefix[,"<<dest<<",][,"<<pref<<",]:," << lambda_obs_dest_given_prefix[dest][pref] << flush<<endl;
+            cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
         }
     }
     //Now we can calculate avg_q per prefix as the max q for all dests * lambda(d,prefix).
@@ -2004,7 +2006,7 @@ void calculate_min_path_strategy_prefixes(){
         for(size_t dest=0;dest<Destinations.size();dest++){
             avg_q_prefix[pref] = max(avg_q_prefix[pref], lambda_obs_dest_given_prefix[dest][pref]*q_given_dest_and_prefix[dest][pref]);
         }
-        //cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] << flush<<endl;
+        cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] <<endl;
     }
 
     //Now we can calculate q_avg as the max estimated q reward for any destination for a given prefix
@@ -2410,7 +2412,7 @@ void simulation_observer_prefix()
     // of the vector
     //Choose a path
     unsigned path = static_cast<unsigned>(paths_dist(gen));
-    //cout << "chosen_path_id:" << path << ", which had prob:" << prob_path[path] << endl;
+    //cout << "\t\tchosen_path_id:," << path << ", which had prob:" << prob_path[path] << endl;
     //cout << "chosen_path_vertices:";
     //main_dijkstra_alg->print_path(path);
     //cout << endl;
@@ -2422,7 +2424,7 @@ void simulation_observer_prefix()
         //main_dijkstra_alg->print_prefix(pref);
         //cout << endl;
         if(cutset_prefix.count(pref)>0){
-            //cout << "cutset node found at node:,";
+            //cout << "\tcutset node found at node:,";
             //main_dijkstra_alg->print_prefix(pref);
             cutset_pref = pref;
             //cout<< ",cutset_pref:," << pref << endl;
@@ -2443,8 +2445,9 @@ void simulation_observer_prefix()
         auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
         if(pred.first==actual_dest){
             //cout << ",pred was right,full savings:" << pred.second<< endl;
-            savings += pred.second;
-            avg_savings[saving_group] += pred.second;
+            auto reward=main_dijkstra_alg->get_cost_to_dest(cutset_pref, path);
+            savings += reward;
+            avg_savings[saving_group] += reward;
         }
         else{
             //cout << ",pred was wrong, actual dest is:"<<actual_dest<<",savings lost:"<<pred.second << endl;
@@ -5805,30 +5808,33 @@ float calculate_q_recursive_prefix(unsigned node){
     //cout << "\torig_vertex:" << orig_vertex->getID() << endl;
     for(auto child : (*edges)[node]){
         //cout<<"\tsum1="<<sum<<flush<<endl;
-        auto dest_vertex = (*paths)[(*prefixes)[child].first][(*prefixes)[child].second];
+        //auto dest_vertex = (*paths)[(*prefixes)[child].first][(*prefixes)[child].second];
         //cout << "\t\tchild_vertex:," << dest_vertex->getID()<< flush << endl;
         auto key = make_pair(node, child);
         //sum+=Alpha[dest][key]*(calculate_q_recursive(make_pair(child_node,x),dest)+ main_graph.get_edge_weight(orig_vertex, dest_vertex));
-        sum += AlphaPrefix[key] * (calculate_q_recursive_prefix(child)+ main_graph.get_edge_weight(orig_vertex, dest_vertex));
-        //sum += AlphaPrefix[key] * (calculate_q_recursive_prefix(child) );
+        //sum += AlphaPrefix[key] * (calculate_q_recursive_prefix(child)+ main_graph.get_edge_weight(orig_vertex, dest_vertex));
+        sum += AlphaPrefix[key] * (calculate_q_recursive_prefix(child) );
     }
-    phi_prefix[node] = sum;
+    //phi_prefix[node] = sum;
     //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
-    if(phi_prefix[node]==avg_q_prefix[node]){
-        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        //cout<<" belongs to cutset" << endl;
+    if(avg_q_prefix[node]>=sum){
+        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         cutset_prefix.insert(node);
     }
-    else if(phi_prefix[node]<avg_q_prefix[node]){
+    else if(sum<avg_q_prefix[node]){
+        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
-        phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
+        //phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
         //cout << "\tphi second term is lower than avg_q_prefix,so maximizing:" << node << endl;
     }
     else{
-        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        //cout<<" does not belong to cutset" << endl;
+        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        cout << " does1 not belong to cutset,sum_prefix:" << phi_prefix[node] << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
     }
-    return sum;
+    phi_prefix[node] = max(sum, avg_q_prefix[node]);
+    return phi_prefix[node];
 }
 
 //given a node (in cutset!), predict which destination to defend
@@ -5841,7 +5847,9 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
             continue;//destination prob is 0 for this path
         }
         avg_q = lambda_obs_dest_given_prefix[d][node] * q_given_dest_and_prefix[d][node];
-        //cout<<"\td:"<<d<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
+        //if(node==0){
+            //cout<<"\td:"<<d<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
+        //}
         if(avg_q>max_q){
             chosen_dest=d;
             max_q = avg_q;

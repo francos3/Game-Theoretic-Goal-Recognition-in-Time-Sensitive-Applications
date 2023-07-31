@@ -37,6 +37,7 @@ private: // members
     std::map<int,shared_ptr<BasePath> > m_mpFullPaths;
     std::set<int> forbidden_nodes;
     std::vector<BaseVertex*> AGpath;
+    std::set<int> AGpathSet;
     std::set<int> AGseen;
     std::vector<pair<unsigned, unsigned> > prefixes;
     std::vector<set<unsigned> > paths_per_prefix;
@@ -174,10 +175,12 @@ public:
     int get_perim_size();
     void improve_distances(unordered_set<int> *FO_nodes, vector<Link> *FO_edges,unordered_map<pair<int,int>,float,hash_pair> *best_d);
     void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool acyclic=true,bool grandparent_check=false);
+    void createAGYen( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool writeToFile=true);
     void printAGFile();
     //void calculateMinPathStrategy();
     void populateAGnodes();
     void populateAGPnodes();
+    void load_paths();
     void print_prefix(unsigned pref){
         for (size_t i = 0; i <= prefixes[pref].second;i++)
             cout << AGpaths2[prefixes[pref].first][i]->getID()<<","<<flush;
@@ -186,22 +189,36 @@ public:
         for (auto node : AGpaths2[id])
             cout<<node->getID()<<",";
     }
-    float get_cost_to_dest(unsigned pref, unsigned path){
-        //cout << "hola cost_to_dest" << flush<<endl;
+    float get_path_cost(std::vector<BaseVertex*> *path){
         float cost = 0;
-        //size_t path = prefixes[pref].first;
-        for (size_t i = prefixes[pref].second;i<AGpaths2[path].size()-1;i++){
-            //cout << "i:" << i << flush << endl;
-            auto parent = AGpaths2[path][i];
+        for (size_t i = 0; i < path->size() - 1; i++)
+        {
+            auto parent = (*path)[i];
+            auto child = (*path)[i+1];
             //cout << "parent:" << parent->getID() << flush << endl;
-            auto child = AGpaths2[path][i+1];
-            //cout << "child:" << child->getID() << flush << endl;
             cost += m_pDirectGraph->get_edge_weight(parent, child);
         }
-        //cout << "\t\tcost from:"; print_prefix(pref); cout<<"for path:";
-        //print_path(path);
-        //cout << ", is:," << cost << endl;
         return cost;
+    }
+
+    float get_cost_to_dest(unsigned pref, unsigned path)
+    {
+        // cout << "hola cost_to_dest" << flush<<endl;
+        float cost = 0;
+        // size_t path = prefixes[pref].first;
+        for (size_t i = prefixes[pref].second; i < AGpaths2[path].size() - 1; i++)
+        {
+            // cout << "i:" << i << flush << endl;
+            auto parent = AGpaths2[path][i];
+            // cout << "parent:" << parent->getID() << flush << endl;
+            auto child = AGpaths2[path][i + 1];
+            // cout << "child:" << child->getID() << flush << endl;
+            cost += m_pDirectGraph->get_edge_weight(parent, child);
+        }
+        // cout << "\t\tcost from:"; print_prefix(pref); cout<<"for path:";
+        // print_path(path);
+        // cout << ", is:," << cost << endl;
+            return cost;
     }
     float get_pref_cost(unsigned pref){
         //cout << "hola cost_to_dest" << flush<<endl;

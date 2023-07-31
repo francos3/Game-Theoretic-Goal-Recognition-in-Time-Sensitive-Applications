@@ -19,6 +19,7 @@
 #include "DijkstraShortestPathAlg.h"
 #include <iostream>
 #include <fstream>
+#include "YenTopKShortestPathsAlg.h"
 BasePath *DijkstraShortestPathAlg::get_shortest_path(BaseVertex *source, BaseVertex *sink)
 {
 
@@ -716,9 +717,12 @@ std::shared_ptr<vector<set<unsigned> > > DijkstraShortestPathAlg::linkPrefixToPa
     size_t counter_prefix = 0;
     paths_per_prefix.resize(prefixes.size());
     prefixes_per_path.resize(AGpaths2.size());
+    size_t i = 0;
     for (auto container : AGpaths2){
         counter_prefix = 0;
         auto dest = DestToOrder[container.second.back()->getID()];
+        if(i%500)
+            cout << "i:" << i++ << endl;
         for (auto pref : prefixes){
             if(std::includes(container.second.begin(),container.second.end(),AGpaths2[pref.first].begin(),AGpaths2[pref.first].begin()+1+pref.second)){
                 paths_per_prefix[counter_prefix].insert(container.first);
@@ -966,16 +970,79 @@ void DijkstraShortestPathAlg::printAGFile()
     myfile << "}" << endl;
     myfile.close();
 }
+void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
+    int k = 1000;
+    auto start_time = std::chrono::high_resolution_clock::now();
+    YenTopKShortestPathsAlg yenAlg(*m_pDirectGraph,
+                                   (*m_pDirectGraph).get_vertex(source->getID()),
+                                   (*m_pDirectGraph).get_vertex(sink->getID()));
+
+    // Output the k-shortest paths
+    int i = 0;
+    //Write it into a file
+    string filename = "paths.txt";
+    std::ofstream outfile(filename, std::ios_base::app);
+    if (!outfile) {
+        std::cerr << "Failed to open file: " << filename << '\n';
+        return;
+    }
+    while (yenAlg.has_next() && i < k)
+    {
+        ++i;
+        BasePath current_path = *(yenAlg.next());
+        if (current_path.length() > budget)
+        {
+            //std::cout<<"paths_created for current destination:"<<d<<",finish, all future paths will have length bigger than:"<<current_path.length()<<",max_length allowed:"<<C<<endl;
+            break;
+        }
+        /*if (budget == INT_MAX)
+        { //first path is optimal for each destination
+            optimal_distances[d] = current_path.length();
+            std::cout << "optimal_distances[" << d << "]:" << optimal_distances[d] << endl;
+        }*/
+
+        //current_path.PrintOut(std::cout);
+        //current_path.add_paths_set(all_paths);
+        //MAKE THIS MORE EFFICIENT USING POINTERS
+        current_path.GetVertexVector(AGpath);
+        //cout << "i:"<<i<<",path:,";
+        //for (auto node : AGpath)
+        //    cout<<node->getID()<<",";
+        //cout << endl;
+        //cout << "i:"<<i<<",path cost:"<< get_path_cost(&AGpath)<<endl;
+        AGpaths.insert(AGpath);
+        if(writeToFile){
+            for (const auto& elem : AGpath) {
+                outfile << elem->getID() << ',';
+            }
+            outfile << endl;
+        }
+        //std::cout<<"\t added path:,"<<i<<endl;
+    }
+    outfile.close();
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end_time - start_time;
+    auto current_time = diff.count();
+    cout << "Yen added,"<<i<<",paths in,"<<current_time<<","<<"budget:,"<<budget<<endl;
+    //exit(1);
+}
+
 void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, float Budget,bool acyclic, bool grandparent_check)
 {
     //cout << "CreateAG" << endl;
     static int path_counter=0;
+    static int last_dest = INT_MAX;
+    if(last_dest!=sink->getID()){
+        last_dest = sink->getID();
+        path_counter = 0;
+    }
+    if(path_counter>1000){
+        //cout << "limiting number of paths to destionation to 1000" << endl;
+        return;
+    }
     //cout<<"\tAG,source:,"<<source->getID()<<",sink:,"<<sink->getID()<<endl;
     //cout<<"\tBudget:"<<Budget<<endl;
     //We are out of budget
-    if(Budget<=0){
-        return;
-    }
     if (AGpath.size() == 0)
     {
         AGpath.push_back(origin);
@@ -984,9 +1051,13 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
     {
         path_counter++;
         if(path_counter%100==0)
-            cout<<endl<<"sink:,"<<sink->getID()<<",paths_found:"<<path_counter<<endl;
-        /*cout << "path found:,";
-        float cost=0;
+            cout<<endl<<"sink:,"<<sink->getID()<<",paths_found:"<<path_counter<<flush<<endl;
+        
+        //cout << "path found:,";
+        //for (auto node : AGpath)
+        //    cout << node->getID() << ",";
+        //cout << endl;
+        /*float cost=0;
         for (size_t i = 0; i < AGpath.size(); i++)
         {
             cout <<"["<< AGpath[i]->getID() << ",";
@@ -998,7 +1069,7 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
                 cout<<cost<<"],";
             }
         }
-        //cout << endl;*/
+        cout << endl;*/
         /*cout<<"seen:,";
         for(auto element : AGseen){
             cout<<element<<",";
@@ -1008,26 +1079,35 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
         AGpaths.insert(AGpath);
         return;
     }
+    if(Budget<=0){
+        //cout << "sink:" << sink->getID() << ",run out of budget" << endl;
+        return;
+    }
 
-    if(acyclic){
-        /*AGseen.clear();
-        cout<<"AGseen:";
+    /*if(acyclic){
+        AGseen.clear();
         for (auto element : AGpath)
         {
             auto ret=AGseen.insert(element->getID());
-            if (ret.second==false)
+            if (ret.second==false){
+                //cout << "cycle found, eliminating path:";
+                //for (auto node : AGpath)
+                //    cout << node->getID() << ",";
                 return;
-            cout<<element->getID()<<",";
+            }
+        //    //cout<<element->getID()<<",";
         }
-        cout<<endl;*/
+        //cout<<endl;
+        //cout<<"AGseen:"<<AGseen<<flush<<endl;
 
         if (stuck(source, sink))
         {
             //cout<<"stuck, returning"<<endl;
-            AGseen.erase(source->getID());
+            //cout<<"stuck, eliminating "<<flush<<source->getID()<<flush<<endl;
+            //AGseen.erase(source->getID());
             return;
         }
-    }
+    }*/
 
     set<BaseVertex *> *neighbor_vertex_list_pt = new set<BaseVertex *>();
     m_pDirectGraph->get_adjacent_vertices(source, *neighbor_vertex_list_pt);
@@ -1035,7 +1115,18 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
          cur_neighbor_pos != neighbor_vertex_list_pt->end(); ++cur_neighbor_pos)
     {
         //cout<<"path:";for(auto element : AGpath) cout<<element->getID()<<","<<",child:"<<(*cur_neighbor_pos)->getID()<<endl;
-        if(grandparent_check&&AGpath.size()>1){
+        if(acyclic&&AGpath.size()>1){
+            bool skip = false;
+            for (auto node: AGpath){
+                if(node->getID()==(*cur_neighbor_pos)->getID()){
+                        skip = true;
+                        break;
+                }
+            }
+            if(skip)
+                continue;
+        }
+        else if(grandparent_check&&AGpath.size()>1){
             if((*cur_neighbor_pos)->getID()==AGpath[AGpath.size()-2]->getID()){
                 //cout<<"path:"<<AGpath<<",child:"<<(*cur_neighbor_pos)->getID()<<endl;exit(1);
                 continue;
@@ -1048,8 +1139,10 @@ void DijkstraShortestPathAlg::createAG(BaseVertex *source, BaseVertex *sink, flo
 }
 bool DijkstraShortestPathAlg::stuck(BaseVertex *source, BaseVertex *sink)
 {
+    //cout << "hola1" << flush << endl;
     if (source->getID() == sink->getID())
     {
+        //AGseen.clear();
         return false;
     }
     set<BaseVertex *> *neighbor_vertex_list_pt = new set<BaseVertex *>();
@@ -1057,11 +1150,15 @@ bool DijkstraShortestPathAlg::stuck(BaseVertex *source, BaseVertex *sink)
     for (set<BaseVertex *>::iterator cur_neighbor_pos = neighbor_vertex_list_pt->begin();
          cur_neighbor_pos != neighbor_vertex_list_pt->end(); ++cur_neighbor_pos)
     {
+        //cout << "\thola2" << AGseen << flush << endl;
         if (AGseen.find((*cur_neighbor_pos)->getID()) == AGseen.end())
         {
+            //cout << "inserting " << (*cur_neighbor_pos)->getID()<<", to AGseen"<<AGseen<<endl;
             AGseen.insert((*cur_neighbor_pos)->getID());
+            //cout << "\thola3,node:" << (*cur_neighbor_pos)->getID()<< flush << endl;
             if (not(stuck(*cur_neighbor_pos, sink)))
             {
+                //cout << "AGseen:" << AGseen << flush<< endl;
                 return false;
             }
         }
@@ -1250,3 +1347,30 @@ bool DijkstraShortestPathAlg::stuck(BaseVertex *source, BaseVertex *sink)
 //		}
 //	}
 //}
+
+void DijkstraShortestPathAlg::load_paths(){
+    //std::vector<std::vector<int>> vec;
+    string filename = "paths.txt";
+    std::ifstream infile(filename);
+
+    if (!infile) {
+        std::cerr << "Failed to open file: " << filename << '\n';
+        exit(10);
+    }
+
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::vector<int> row;
+        std::istringstream iss(line);
+        std::string val;
+        AGpath.clear();
+        while (std::getline(iss, val, ',')) {
+            AGpath.push_back((*m_pDirectGraph).get_vertex(std::stoi(val)));
+        }
+        AGpaths.insert(AGpath);
+        //cout << "Agpath:";
+        //for (auto node : AGpath)
+        //    cout<<node->getID()<<",";
+        //cout << endl;
+    }
+}
