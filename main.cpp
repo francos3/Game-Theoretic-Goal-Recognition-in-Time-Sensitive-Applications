@@ -122,6 +122,7 @@ map<int, pair<float, vector<std::shared_ptr<BasePath>>>> best_rel_cost_per_dest;
 
 std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1l, 1000000000l>>> start_time = chrono::high_resolution_clock::now();
 std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1l, 1000000000l>>> orig_start_time = chrono::high_resolution_clock::now();
+std::chrono::_V2::system_clock::time_point main_start_time;
 vector<vector<BasePath *>> orig_to_dest_shortest_paths;
 vector<Link> lks;
 int total_nodes = 0;
@@ -144,6 +145,7 @@ float savings=0;
 size_t simulation_runs = 100000;
 int saving_groups=10;
 vector<float> avg_savings(saving_groups,0);
+bool LoadPaths;
 //std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
 
 
@@ -200,7 +202,10 @@ void testYenAlg(const int &k,
                 const int &nodes,
                 std::shared_ptr<PathMatrix> PthMat)
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    cout << "K:" << K << "," << "s:"<<s<<",d:"<<d<<",nodes:"<<nodes<<endl;
     int budget = INT_MAX;
+    debug = true;
 
     Graph my_graph;
     auto all_paths = std::make_shared<set<vector<int>, vect_comp_int>>();
@@ -211,7 +216,7 @@ void testYenAlg(const int &k,
     {
         my_graph.add_link(lk[i].u, lk[i].v, lk[i].weight);
         //if(debug)
-        //std::cout<<"\tAdded Yen Graph node["<<lk[i].u<<","<<lk[i].v<<"],w="<<lk[ i ].weight<<endl;
+        //    std::cout<<"\tAdded Yen Graph node["<<lk[i].u<<","<<lk[i].v<<"],w="<<lk[ i ].weight<<endl;
     }
     if (debug)
         std::cout << "Yen Graph size:" << size << ",d:" << d << ",origin:" << s << endl;
@@ -223,9 +228,9 @@ void testYenAlg(const int &k,
                                    my_graph.get_vertex(d));
 
     //TESTING HACK
-    std::cout << "TESTING DIJKSTRA TO ALL PATHS" << endl;
-    yenAlg.get_shortest_distance_to_all_nodes(my_graph.get_vertex(s));
-    exit(1);
+    //std::cout << "TESTING DIJKSTRA TO ALL PATHS" << endl;
+    //yenAlg.get_shortest_distance_to_all_nodes(my_graph.get_vertex(s));
+    //exit(1);
     //REMOVE ABOVE FROM HERE!!!!
 
     // Output the k-shortest paths
@@ -254,6 +259,10 @@ void testYenAlg(const int &k,
         current_path.add_paths_set(all_paths);
         //std::cout<<"\t added path"<<endl;
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end_time - orig_start_time;
+    auto current_time = diff.count();
+    cout << "Yen added:" << i << "paths" << "in,"<<current_time<<" secs"<<endl;
     PthMat->add_paths_set(all_paths, d);
 }
 int optimizing_observer(PathMatrix *PM, int nodes, int t_max)
@@ -803,7 +812,7 @@ void create_prefix_graph_from_SaT_file(){
         }
         else
         {
-            std::cout << "Destination:," << destination << ",is reachable from origin:," << start << ",continuing search" << endl;
+            std::cout << "Destination:," << destination << ",is reachable from origin:," << start << ",continuing search" <<",cost:"<<main_dijkstra_alg->get_cost(destination)<< endl;
         }
     }
     std::cout << "hola12, Finished checking destinations are reachable" << endl;
@@ -933,61 +942,79 @@ void create_prefix_graph_from_SaT_file(){
     {
         main_dijkstra_alg->Destinations.insert(dest);
     }
+    if(LoadPaths){
+        cout << "Loading paths from paths.txt for debugging" << endl;
+        main_dijkstra_alg->load_paths();
+    }
+    else{//remove paths.txt if it exists before appending to it
+        const char* filename = "paths.txt";
+        remove(filename);
         for (size_t dest = 0; dest < Destinations.size(); dest++)
         {
             //std::cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
-            std::cout<<"AG,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<endl;
-            main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
+            //std::cout << "before finding paths:" << ctime(&timenow) << endl;
+            std::cout<<"AGP,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<",Destination["<<dest<<"]:"<<Destinations[dest]<<",budget:"<<Budget*main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+            main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true);
+            //main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
+            //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
-        main_dijkstra_alg->printAGFile();
-        main_dijkstra_alg->populateAGPnodes();
-        
-        //Now we can calculate strategies as in google doc summarizing version 7 of the paper
-        if (strategy == 0){
-            calculate_min_path_strategy_prefixes();
-        }
-        else{
-            cerr << "Strategy:" << strategy << " undefined!!!" << endl;
-            exit(1);
-        }
+    }
+    //main_dijkstra_alg->printAGFile();
+    main_dijkstra_alg->populateAGPnodes();
+    
+    //Now we can calculate strategies as in google doc summarizing version 7 of the paper
+    if (strategy == 0){
+        auto start_time = std::chrono::high_resolution_clock::now();
+        string method("min_path_time");
+        calculate_min_path_strategy_prefixes();
+        elapsed_time(method, start_time);
+    }
+    else{
+        cerr << "Strategy:" << strategy << " undefined!!!" << endl;
+        exit(1);
+    }
 
-        //Now we calculate recursively phi and Cutset starting at origin
-        calculate_q_recursive_prefix(0);
-        auto initial_pred=dest_predictor_prefix(0);
-        cout << "initial_pred=," << initial_pred.first << "," << initial_pred.second << endl;
-        //Now run simulation
-        //First create a weighted distribution of paths
-        size_t startValue = 0;
-        size_t endValue = prob_path.size()+1;
-        size_t sizeOfVector = endValue - startValue;
-        std::vector<size_t> path_index(sizeOfVector);
-        generate (
-                path_index.begin(),
-                path_index.end(),
-                [&](){
-                    return startValue++;
-                });
+    //Now we calculate recursively phi and Cutset starting at origin
+    auto start_time = std::chrono::high_resolution_clock::now();
+    string method("calculate_q_recursive");
+    calculate_q_recursive_prefix(0);
+    elapsed_time(method, start_time);
+    auto initial_pred=dest_predictor_prefix(0);
+    cout << "initial_pred=," << initial_pred.first << "," << initial_pred.second << endl;
+    //Now run simulation
+    //First create a weighted distribution of paths
+    size_t startValue = 0;
+    size_t endValue = prob_path.size()+1;
+    size_t sizeOfVector = endValue - startValue;
+    std::vector<size_t> path_index(sizeOfVector);
+    generate (
+            path_index.begin(),
+            path_index.end(),
+            [&](){
+                return startValue++;
+            });
 
-        piecewise_constant_distribution<> temp_dist(std::begin(path_index),
-                                                    std::end(path_index),
-                                                    std::begin(prob_path));
-        paths_dist = temp_dist;
-        //paths_dist = make_shared<piecewise_constant_distribution>(paths_dist);
-        //Make simulations trully random
-        srand((int) time(0));
-        for (unsigned i=0;i<simulation_runs;i++)
-            simulation_observer_prefix();
-        cout << "savings:,"<<savings/float(simulation_runs)<<",simulations:," << simulation_runs << ",savings:"<<savings<< endl;
-        double sum = std::accumulate(avg_savings.begin(), avg_savings.end(), 0.0);
-        double mean = sum / avg_savings.size();
+    piecewise_constant_distribution<> temp_dist(std::begin(path_index),
+                                                std::end(path_index),
+                                                std::begin(prob_path));
+    paths_dist = temp_dist;
+    //paths_dist = make_shared<piecewise_constant_distribution>(paths_dist);
+    //Make simulations trully random
+    srand((int) time(0));
+    for (unsigned i=0;i<simulation_runs;i++)
+        simulation_observer_prefix();
+    cout << "savings:,"<<savings/float(simulation_runs)<<",simulations:," << simulation_runs << ",savings:"<<savings<< endl;
+    double sum = std::accumulate(avg_savings.begin(), avg_savings.end(), 0.0);
+    double mean = sum / avg_savings.size();
 
-        std::vector<double> diff(avg_savings.size());
-        std::transform(avg_savings.begin(), avg_savings.end(), diff.begin(), [mean](double x) { return x - mean; });
+    std::vector<double> diff(avg_savings.size());
+    std::transform(avg_savings.begin(), avg_savings.end(), diff.begin(), [mean](double x) { return x - mean; });
 
-        double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-        double stdev = std::sqrt(sq_sum / avg_savings.size());
-        cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",groups:," << saving_groups << endl;
-        exit(10);
+    double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+    double stdev = std::sqrt(sq_sum / avg_savings.size());
+    cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",groups:," << saving_groups << endl;
+    elapsed_time("main", main_start_time);
+    exit(10);
 }
 void create_augmented_graph_from_SaT_file()
 { //
@@ -1904,8 +1931,8 @@ void calculate_min_path_strategy_prefixes(){
             dest_prob_path[destination][counter]=ProbPerDestinationPath[destination]/lambdaDest;
         }
         if(prob_path[counter]>0){
-            main_dijkstra_alg->print_path(counter);
-            cout << ",path_prob[" << counter << "]:" << prob_path[counter] <<", path_cost"<<main_dijkstra_alg->get_cost_to_dest(0,counter)<< endl;
+            //main_dijkstra_alg->print_path(counter);
+            //cout << ",path_prob[" << counter << "]:" << prob_path[counter] <<", path_cost"<<main_dijkstra_alg->get_cost_to_dest(0,counter)<<",dest:,"<<destination<< endl;
             //cout << "dest_path_prob[" << destination<<"]["<< counter << "]:" <<dest_prob_path[destination][counter] << endl;
         }
         counter++;
@@ -1919,11 +1946,21 @@ void calculate_min_path_strategy_prefixes(){
 
     //Now calculate probabilty per prefix. Each prefix gets the probability of all possible paths it is part of.
     auto prefixes = main_dijkstra_alg->get_prefixes();
-    cout << "Hola1" << flush<<endl;
     vector<float> prob_per_prefix(prefixes->size(), 0.0);
     vector<vector<float>> dest_prob_per_prefix(Destinations.size(), prob_per_prefix);
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    string method("calculate_q_recursive");
     auto paths_per_prefix=main_dijkstra_alg->linkPrefixToPaths();
+    elapsed_time("linkPrefixToPaths",start_time);
+    
+    start_time = std::chrono::high_resolution_clock::now();
+    method="get_dest_paths_per_prefix";
     auto dest_paths_per_prefix = main_dijkstra_alg->get_dest_paths_per_prefix();
+    elapsed_time(method, start_time);
+
+    start_time = std::chrono::high_resolution_clock::now();
+    method="dest_prob_per_prefix";
     counter=0;
     for (size_t i = 0; i < prefixes->size(); i++)
     {
@@ -1940,7 +1977,10 @@ void calculate_min_path_strategy_prefixes(){
         //    cout << "\t\tdestination:," << d << ",dest_prob_per_prefix:"<<dest_prob_per_prefix[d][i]<<endl;
         //}
     }
+    elapsed_time(method, start_time);
     
+    start_time = std::chrono::high_resolution_clock::now();
+    method="prefix_prob_path";
     //Now calculate prob_per_path_given_prefix.
     //prefix_prob_path.assign(paths->size(), 0);
     for (size_t i = 0; i < prefixes->size(); i++){
@@ -1952,6 +1992,7 @@ void calculate_min_path_strategy_prefixes(){
             }
         }
     }
+    elapsed_time(method, start_time);
 
     //Now calculate prob_per_path_given_dest_and_prefix.
     
@@ -1959,6 +2000,8 @@ void calculate_min_path_strategy_prefixes(){
     map<pair<unsigned, unsigned>, float> temp;
     prob_per_path_given_dest_and_prefix.assign(Destinations.size(), temp);
 
+    start_time = std::chrono::high_resolution_clock::now();
+    method="prob_per_path_given_dest";
     for(size_t d=0;d<Destinations.size();d++){
         for(size_t pref=0;pref<prefixes->size();pref++){
             for(auto pth : paths_per_prefix->at(pref)){
@@ -1970,6 +2013,7 @@ void calculate_min_path_strategy_prefixes(){
             }
         }
     }
+    elapsed_time(method, start_time);
     //Now we calculate lambda as a function of prefix and destination
     //For now the lambda(d) distribution is all destinations are equally probable
     //We also calculate q(d,prefix) since we need to use the same loop
@@ -1980,7 +2024,9 @@ void calculate_min_path_strategy_prefixes(){
     
     vector<float> temp_vec_float; temp_vec_float.assign(prefixes->size(), 0);
     q_given_dest_and_prefix.assign(Destinations.size(), temp_vec_float);
-
+    
+    start_time = std::chrono::high_resolution_clock::now();
+    method="q_given_dest_and_prefix_time";
     for(size_t dest=0;dest<Destinations.size();dest++){
         for(size_t pref=0;pref<prefixes->size();pref++){
             //cout << "\tcalculating lambda and q per dest and prefix" << flush << endl;
@@ -1993,12 +2039,13 @@ void calculate_min_path_strategy_prefixes(){
                 auto id = make_pair(pref, pth);
                 lambda_obs_dest_given_prefix[dest][pref] += prefix_prob_path[id];
                 q_given_dest_and_prefix[dest][pref] += prob_per_path_given_dest_and_prefix[dest][id]*main_dijkstra_alg->get_cost_to_dest(pref,pth);
-                cout << "\tpth:," << pth << ",pref:," << pref << ",cost:," << main_dijkstra_alg->get_cost_to_dest(pref, pth) << endl;
+                //cout << "\tpth:," << pth << ",pref:," << pref << ",cost:," << main_dijkstra_alg->get_cost_to_dest(pref, pth) << endl;
             }
-            cout << "\t lambda_obs_dest_given_prefix[,"<<dest<<",][,"<<pref<<",]:," << lambda_obs_dest_given_prefix[dest][pref] << flush<<endl;
-            cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
+            //cout << "\t lambda_obs_dest_given_prefix[,"<<dest<<",][,"<<pref<<",]:," << lambda_obs_dest_given_prefix[dest][pref] << flush<<endl;
+            //cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
         }
     }
+    elapsed_time(method, start_time);
     //Now we can calculate avg_q per prefix as the max q for all dests * lambda(d,prefix).
     avg_q_prefix.assign(prefixes->size(), 0.0);
     phi_prefix.assign(prefixes->size(), 0.0);//Here is a good point to resize it as well.
@@ -2006,13 +2053,15 @@ void calculate_min_path_strategy_prefixes(){
         for(size_t dest=0;dest<Destinations.size();dest++){
             avg_q_prefix[pref] = max(avg_q_prefix[pref], lambda_obs_dest_given_prefix[dest][pref]*q_given_dest_and_prefix[dest][pref]);
         }
-        cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] <<endl;
+        //cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] <<endl;
     }
 
     //Now we can calculate q_avg as the max estimated q reward for any destination for a given prefix
     
 
     //Now we calculate AlphaPrefix which is the transition probability between 2 adjacent prefixes
+    start_time = std::chrono::high_resolution_clock::now();
+    method = "AlphaPrefix";
     auto edges = main_dijkstra_alg->getAGPEdges();
     unsigned parent = 0;
     for(auto children : *edges){
@@ -2033,6 +2082,7 @@ void calculate_min_path_strategy_prefixes(){
         parent++;
 
     }
+    elapsed_time(method, start_time);
 
 
 }
@@ -4083,7 +4133,7 @@ void random_dest_and_origin_placement()
         std::cout << endl;
     }
     std::cout << "\n\nstart_pos:," << start << ",Random_Destinations:" << Destinations << ",random_seed:" << random_seed << ",add_lambda:" << lambda_add << endl;
-    exit(1);
+    //exit(1);
 }
 void from_file_random_dest_and_origin_selection()
 {
@@ -4117,6 +4167,7 @@ void from_file_random_dest_and_origin_selection()
 int main(int argc, char *argv[])
 {
 
+    main_start_time = std::chrono::high_resolution_clock::now();
     int array_size = 0;
     int nodes = 0;
     vector<Link> lks;
@@ -4142,6 +4193,7 @@ int main(int argc, char *argv[])
     bool optimize_budget = false;
     bool SaT_map = false;
     bool AugGraph = false;
+    LoadPaths = false;
 
     vector<vector<Link>> grid_vect_orig_dest;
     vector<vector<Link>> grid_vect_dest_to_dest;
@@ -4158,6 +4210,10 @@ int main(int argc, char *argv[])
         if (action == "AG")
         {
             AugGraph = true;
+        }
+        if (action == "load_paths")
+        {
+            LoadPaths = true;
         }
         if (action == "debug")
         {
@@ -4359,9 +4415,11 @@ int main(int argc, char *argv[])
     }
     //Check input file exists
     ifstream f(input_filename);
-    if(!f.good()){
-        cerr<<"graph input file:"<<input_filename<<" does not exist!"<<endl;
-        exit(31);
+    if (input_filename.length() > 0){
+        if(!f.good()){
+            cerr<<"graph input file:"<<input_filename<<" does not exist!"<<endl;
+            exit(31);
+        }
     }
     int positions = N * N - 1;
     if (optimize_target == false &&
@@ -4425,6 +4483,7 @@ int main(int argc, char *argv[])
         create_grid_edges(N, grid_vect);
 
         lks.resize(grid_vect.size());
+        cout << "lks_size:" << lks.size() << endl;
         for (size_t i = 0; i < grid_vect.size(); i++)
         {
             lks[i] = grid_vect[i];
@@ -4503,16 +4562,17 @@ int main(int argc, char *argv[])
     PM->set_C(C);
     PM->set_min_cal(min_cal);
     //std::cout<<"C:,"<<C<<",min_cal:,"<<min_cal<<endl;
-    std::cout << "Destinations:" << Destinations << endl;
+    std::cout << "hola Destinations:" << Destinations << endl;
 
     Link *lks_array = &lks[0];
+    optimize_budget = false;
     if (!optimize_budget)
     {
         for (auto end : Destinations)
         {
             testYenAlg(K,
                        lks_array,
-                       array_size,
+                       lks.size(),
                        start,
                        end,
                        nodes,
@@ -4525,6 +4585,7 @@ int main(int argc, char *argv[])
             std::cout << "Time(ms) for producing yen paths in secs:" << ms << endl;
             YenTime = ms;
         }
+        exit(1);
     }
     else
     { //optimize_budget!
@@ -5818,20 +5879,20 @@ float calculate_q_recursive_prefix(unsigned node){
     //phi_prefix[node] = sum;
     //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
     if(avg_q_prefix[node]>=sum){
-        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
+        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        //cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         cutset_prefix.insert(node);
     }
     else if(sum<avg_q_prefix[node]){
-        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
+        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        //cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
         //phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
         //cout << "\tphi second term is lower than avg_q_prefix,so maximizing:" << node << endl;
     }
     else{
-        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        cout << " does1 not belong to cutset,sum_prefix:" << phi_prefix[node] << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
+        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        //cout << " does1 not belong to cutset,sum_prefix:" << phi_prefix[node] << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
     }
     phi_prefix[node] = max(sum, avg_q_prefix[node]);
     return phi_prefix[node];
@@ -5857,3 +5918,9 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
     }
     return make_pair(chosen_dest,max_q);
 }
+void elapsed_time(string method, std::chrono::_V2::system_clock::time_point start_time){
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end_time - start_time;
+    auto current_time = diff.count();
+    cout << method << ",time:,"<<current_time<< endl;
+};
