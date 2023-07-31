@@ -142,6 +142,9 @@ public:
 	{
 		return m_vtVertexList.at(i);
 	}
+	void GetVertexVector(std::vector<BaseVertex *> &path){
+		path = m_vtVertexList;
+	}
 
 	bool SubPath(std::vector<BaseVertex*>& sub_path, BaseVertex* ending_vertex_pt)
 	{
