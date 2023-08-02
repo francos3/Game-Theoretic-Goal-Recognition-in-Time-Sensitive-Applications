@@ -58,7 +58,6 @@ public:
     std::vector<std::set<pair<unsigned, double> > > AGP_subgraph;
     std::set<pair<BaseVertex*,double> > AG_destinations;
     std::map<pair<int,double>,set<pair<int,double> > > AG_edges_bw;
-    
     DijkstraShortestPathAlg(Graph* pGraph):m_pDirectGraph(pGraph){}
     ~DijkstraShortestPathAlg(void){clear();}
     DijkstraShortestPathAlg();
@@ -184,6 +183,10 @@ public:
     void print_prefix(unsigned pref){
         for (size_t i = 0; i <= prefixes[pref].second;i++)
             cout << AGpaths2[prefixes[pref].first][i]->getID()<<","<<flush;
+    }
+    unsigned get_prefix_ending(unsigned pref){
+        size_t i = prefixes[pref].second;
+        return AGpaths2[prefixes[pref].first][i]->getID();
     }
     void print_path(unsigned id){
         for (auto node : AGpaths2[id])

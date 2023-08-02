@@ -55,6 +55,7 @@ float optimal_limit = 1.20;
 map<int, int> optimal_distances;
 int start = 0;
 vector<int> Destinations;
+set<unsigned> DestAdjacent;
 float YenTime = 0;
 unordered_map<int, pair<int, int>> node_map;
 map<string, int> coord_map;
@@ -142,6 +143,7 @@ double epsilon=pow(0.1,20);
 piecewise_constant_distribution<> paths_dist;
 float initial_pred=0;
 float savings=0;
+float savings_adj_prefix=0;
 size_t simulation_runs = 100000;
 int saving_groups=10;
 vector<float> avg_savings(saving_groups,0);
@@ -771,9 +773,14 @@ void create_prefix_graph_from_SaT_file(){
     file_node_counter = total_nodes;
     //Now create Dijkstra Graph
     main_graph.set_number_vertices(file_node_counter);
+    set<int> DestinationsSet(Destinations.begin(), Destinations.end());
     for (long i = 0; i < total_edges; i++)
     {
         main_graph.add_link(lks[i].u, lks[i].v, lks[i].weight);
+        if(DestinationsSet.count(lks[i].v)>0){
+            DestAdjacent.insert(lks[i].u);
+            //cout << "\tnode:," << lks[i].u << ",is adjacent to destination," << lks[i].v << endl;
+        }
     }
 
     main_graph.setv();
@@ -965,9 +972,9 @@ void create_prefix_graph_from_SaT_file(){
     //Now we can calculate strategies as in google doc summarizing version 7 of the paper
     if (strategy == 0){
         auto start_time = std::chrono::high_resolution_clock::now();
-        string method("min_path_time");
+        //string method("min_path_time");
         calculate_min_path_strategy_prefixes();
-        elapsed_time(method, start_time);
+        //elapsed_time(method, start_time);
     }
     else{
         cerr << "Strategy:" << strategy << " undefined!!!" << endl;
@@ -1012,7 +1019,7 @@ void create_prefix_graph_from_SaT_file(){
 
     double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
     double stdev = std::sqrt(sq_sum / avg_savings.size());
-    cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",groups:," << saving_groups << endl;
+    cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",dest_adj_savings:,"<<savings_adj_prefix/simulation_runs<<",groups:," << saving_groups << endl;
     elapsed_time("main", main_start_time);
     exit(10);
 }
@@ -2469,6 +2476,25 @@ void simulation_observer_prefix()
     //Now find first cut
     auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
     int cutset_pref = -1;
+
+    //Check which is the first prefix adjacent to a destination
+    auto dest_adj_pref = -1;
+
+    for (auto pref : (*prefixes_per_path)[path]){
+        //get last node in prefix
+        if(DestAdjacent.count(main_dijkstra_alg->get_prefix_ending(pref))>0){
+            dest_adj_pref = pref;
+            //cout << "pref[,"<<pref<<",]:";
+            //main_dijkstra_alg->print_prefix(pref);
+            //cout << " is adjacent to destination,actual_path:";
+            //main_dijkstra_alg->print_path(path);
+            //cout << endl;
+            break;
+        }
+    }
+    savings_adj_prefix+=dest_predictor_prefix(dest_adj_pref).second;
+
+    //Now do normal cutset prediction
     for (auto pref : (*prefixes_per_path)[path]){
         //cout << "\t\t working on prefix:";
         //main_dijkstra_alg->print_prefix(pref);
