@@ -55,7 +55,7 @@ float optimal_limit = 1.20;
 map<int, int> optimal_distances;
 int start = 0;
 vector<int> Destinations;
-set<unsigned> DestAdjacent;
+vector<bool> DestAdjacentVec;
 float YenTime = 0;
 unordered_map<int, pair<int, int>> node_map;
 map<string, int> coord_map;
@@ -774,11 +774,13 @@ void create_prefix_graph_from_SaT_file(){
     //Now create Dijkstra Graph
     main_graph.set_number_vertices(file_node_counter);
     set<int> DestinationsSet(Destinations.begin(), Destinations.end());
+    DestAdjacentVec.assign(file_node_counter, false);
     for (long i = 0; i < total_edges; i++)
     {
         main_graph.add_link(lks[i].u, lks[i].v, lks[i].weight);
         if(DestinationsSet.count(lks[i].v)>0){
-            DestAdjacent.insert(lks[i].u);
+            //DestAdjacent.insert(lks[i].u);
+            DestAdjacentVec[lks[i].u] = true;
             //cout << "\tnode:," << lks[i].u << ",is adjacent to destination," << lks[i].v << endl;
         }
     }
@@ -1008,8 +1010,11 @@ void create_prefix_graph_from_SaT_file(){
     //paths_dist = make_shared<piecewise_constant_distribution>(paths_dist);
     //Make simulations trully random
     srand((int) time(0));
+
+    auto simulation_start_time = std::chrono::high_resolution_clock::now();
     for (unsigned i=0;i<simulation_runs;i++)
         simulation_observer_prefix();
+    elapsed_time("simulation_observer_prefix", simulation_start_time);
     cout << "savings:,"<<savings/float(simulation_runs)<<",simulations:," << simulation_runs << ",savings:"<<savings<< endl;
     double sum = std::accumulate(avg_savings.begin(), avg_savings.end(), 0.0);
     double mean = sum / avg_savings.size();
@@ -2482,7 +2487,7 @@ void simulation_observer_prefix()
 
     for (auto pref : (*prefixes_per_path)[path]){
         //get last node in prefix
-        if(DestAdjacent.count(main_dijkstra_alg->get_prefix_ending(pref))>0){
+        if(DestAdjacentVec[main_dijkstra_alg->get_prefix_ending(pref)]){
             dest_adj_pref = pref;
             //cout << "pref[,"<<pref<<",]:";
             //main_dijkstra_alg->print_prefix(pref);
