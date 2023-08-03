@@ -6,7 +6,7 @@ import re
 folder_path = "/home/ugac002/Dropbox/GO_2023/test_experiments"
 
 # Define a pattern to match the filenames
-file_pattern = "log_prefix_N*_R*_S*.txt"
+file_pattern = "log_prefix_N60*_R*_S*.txt"
 
 # Get all matching files
 file_paths = glob.glob(f"{folder_path}/{file_pattern}")
@@ -38,6 +38,7 @@ for file_path in file_paths:
         link_prefix_time = float(re.search(r'linkPrefixToPaths,time:,(\d+.\d+)', "\n".join(lines)).group(1))
         #min_path_time = float(re.search(r'min_path_time,time:,(\d+.\d+)', "\n".join(lines)).group(1))
         calculate_q_recursive_time = float(re.search(r'calculate_q_recursive,time:,(\d+.\d+)', "\n".join(lines)).group(1))
+        simulation_time = float(re.search(r'simulation_observer_prefix,time:,(\d+.\d+)', "\n".join(lines)).group(1))
 
         # Extracting total main time
         main_time = float(re.search(r'main,time:,(\d+.\d+)', "\n".join(lines)).group(1))
@@ -45,6 +46,7 @@ for file_path in file_paths:
         # Calculate and store percentages separately
         percentages_by_category[category]['yen_added'].append(yen_added_times / main_time * 100)
         percentages_by_category[category]['link_prefix'].append(link_prefix_time / main_time * 100)
+        percentages_by_category[category]['simulation'].append(simulation_time / main_time * 100)
         #percentages_by_category[category]['min_path'].append(min_path_time / main_time * 100)
         percentages_by_category[category]['calculate_q_recursive'].append(calculate_q_recursive_time / main_time * 100)
 
@@ -64,7 +66,7 @@ import csv
 csv_filename = 'time_percentages.csv'
 
 # Define the CSV headers
-headers = ['N', 'R', 'Yen(%)', 'LinkPrefixToPaths(%)', 'CalculateQRecursive(%)']
+headers = ['N', 'R', 'Yen(%)', 'LinkPrefixToPaths(%)', 'CalculateQRecursive(%)','Simulation(%)']
 
 # Open the CSV file for writing
 with open(csv_filename, 'w', newline='') as csvfile:
@@ -82,7 +84,8 @@ with open(csv_filename, 'w', newline='') as csvfile:
             round(average_percentages['yen_added'],2),
             round(average_percentages['link_prefix'],2),
             #round(average_percentages['min_path'],2),
-            round(average_percentages['calculate_q_recursive'],2)
+            round(average_percentages['calculate_q_recursive'],2),
+            round(average_percentages['simulation'],2)
         ]
         writer.writerow(row)
 
@@ -100,6 +103,7 @@ N_values = data['N'].unique()
 colors = {
     'Yen(%)': 'blue',
     'LinkPrefixToPaths(%)': 'green',
+    'Simulation(%)': 'black',
     'CalculateQRecursive(%)': 'red'
 }
 
@@ -121,7 +125,8 @@ for idx, N in enumerate(N_values):
 
     plt.plot(subset['R'], subset['Yen(%)'], color=colors['Yen(%)'], linestyle=linestyle, marker=marker, label=f'N={N} Yen(%)')
     plt.plot(subset['R'], subset['LinkPrefixToPaths(%)'], color=colors['LinkPrefixToPaths(%)'], linestyle=linestyle, marker=marker, label=f'N={N} LinkPrefixToPaths(%)')
-    plt.plot(subset['R'], subset['CalculateQRecursive(%)'], color=colors['CalculateQRecursive(%)'], linestyle=linestyle, marker=marker, label=f'N={N} CalculateQRecursive(%)')
+    plt.plot(subset['R'], subset['CalculateQRecursive(%)'], color=colors['CalculateQRecursive(%)'], linestyle=linestyle, marker=marker, label=f'N={N} CalculatePhiRecursive(%)')
+    plt.plot(subset['R'], subset['Simulation(%)'], color=colors['Simulation(%)'], linestyle=linestyle, marker=marker, label=f'N={N} Simulation(%)')
 
 # Add a grid
 plt.grid()
@@ -139,4 +144,5 @@ plt.xticks(data['R'].unique())
 
 # Show the plot
 plt.tight_layout()
-plt.show()
+#plt.show()
+plt.savefig("TimePercentages.png")

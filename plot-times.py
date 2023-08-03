@@ -88,4 +88,5 @@ plt.legend()
 plt.grid(True)
 
 # Show the plot
-plt.show()
+#plt.show()
+plt.savefig("AvgOverallTimes.png")
