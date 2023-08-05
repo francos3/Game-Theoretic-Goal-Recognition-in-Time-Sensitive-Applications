@@ -1010,6 +1010,12 @@ void create_prefix_graph_from_SaT_file(){
     //paths_dist = make_shared<piecewise_constant_distribution>(paths_dist);
     //Make simulations trully random
     srand((int) time(0));
+    start_time = std::chrono::high_resolution_clock::now();
+    auto best_target_choice = best_avg_target_choice();
+    elapsed_time("target_choice", start_time);
+    //cout << "best_target_choice path[," << best_target_choice.first << "]:,";
+    //main_dijkstra_alg->print_path(best_target_choice.first);
+    //cout << ",reward:," << best_target_choice.second << endl;
 
     auto simulation_start_time = std::chrono::high_resolution_clock::now();
     for (unsigned i=0;i<simulation_runs;i++)
@@ -1024,7 +1030,7 @@ void create_prefix_graph_from_SaT_file(){
 
     double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
     double stdev = std::sqrt(sq_sum / avg_savings.size());
-    cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",dest_adj_savings:,"<<savings_adj_prefix/simulation_runs<<",groups:," << saving_groups << endl;
+    cout << "mean_savings:," << mean/(simulation_runs/saving_groups) << ",std_dev:," << stdev/(simulation_runs/saving_groups) << ",initial_savings:"<<initial_pred.second<<",dest_adj_savings:,"<<savings_adj_prefix/simulation_runs<<",avg_target_choice:,"<<best_target_choice<<",groups:," << saving_groups << endl;
     elapsed_time("main", main_start_time);
     exit(10);
 }
@@ -2472,7 +2478,7 @@ void simulation_observer_prefix()
     // Assigns values returned by successive
     // calls to lambda function to every element
     // of the vector
-    //Choose a path
+    //Choose a pathhs 
     unsigned path = static_cast<unsigned>(paths_dist(gen));
     //cout << "\t\tchosen_path_id:," << path << ", which had prob:" << prob_path[path] << endl;
     //cout << "chosen_path_vertices:";
@@ -2501,7 +2507,7 @@ void simulation_observer_prefix()
 
     //Now do normal cutset prediction
     for (auto pref : (*prefixes_per_path)[path]){
-        //cout << "\t\t working on prefix:";
+        //cout << "\t\t working on prefix[,"<<pref<<"]";
         //main_dijkstra_alg->print_prefix(pref);
         //cout << endl;
         if(cutset_prefix.count(pref)>0){
@@ -2512,10 +2518,14 @@ void simulation_observer_prefix()
             break;
         }
     }
-    //Chec cutset wast found
+    //Check cutset wast found
     if(cutset_pref==-1){//We never foud the cutset!!!
+        //THIS IS OK, REMAINING PATHS COULD BRING BETER REWARD IN AVERAGE
         //cout << ",no pred was made" << endl;
-        //cerr << "Debug me, cutset was not found!!!" << endl;
+        //cout << "Debug me, cutset was not found!!!,path:";
+        //main_dijkstra_alg->print_path(path);
+        //cout << endl;
+        //cout << "cutset:," << cutset_prefix << endl;
         //cerr << "Debug me, cutset was not found!!!" << endl;
         //exit(1);
     }
@@ -5949,6 +5959,67 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
     }
     return make_pair(chosen_dest,max_q);
 }
+float best_avg_target_choice(){
+    auto paths = main_dijkstra_alg->getAGpaths2();
+    auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
+    bool cutset_found = false;
+    float reward = 0;
+
+    pair<unsigned, float> temp_pair(0, INT_MAX);
+    vector<pair<unsigned, float> > best_target_dest_choice;
+    best_target_dest_choice.assign(Destinations.size(), temp_pair);
+
+    //pair<unsigned,float> best_target_choice(0,INT_MAX);
+
+    for(size_t path=0;path<paths->size();path++){
+        auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
+        cutset_found = false;
+        reward = 0;
+        for (auto pref : (*prefixes_per_path)[path]){
+            if(cutset_prefix.count(pref)>0){
+                /*if(cutset_found){
+                    cout << "cutset was already found" << endl;
+                }
+                cout << "path:,";
+                main_dijkstra_alg->print_path(path);
+                cout << endl
+                     << "prefix:,";
+                main_dijkstra_alg->print_prefix(pref);
+                cout << endl;*/
+                reward += main_dijkstra_alg->get_cost_to_dest(pref, path);
+                cutset_found = true;
+            }
+            if(cutset_found){
+                break;
+            }
+        }
+        //if(!cutset_found){
+        //    cout << "PATH:," << path << ", HAS NO CUTSET, DEBUG ME!!!";
+        //}
+        //check if we found a cheaper path for target to pick for actual dest and overall
+        if(best_target_dest_choice[actual_dest].second>reward){
+            best_target_dest_choice[actual_dest].second=reward;
+            best_target_dest_choice[actual_dest].first=path;
+            cout << "\t\t\tFound better choice, path:," << path << ",reward:," << reward <<",dest node:,"<<DestinationsOrder1[actual_dest]<<endl;
+        }
+        //if(best_target_choice.second>reward){
+        //    best_target_choice.second=reward;
+        //    best_target_choice.first=path;
+        //    cout << "Found better overall choice, path:," << path << ",reward:," << reward <<",dest node:,"<<DestinationsOrder1[actual_dest]<<endl;
+        //}
+    }
+    //Now calculate best_average_choice
+    float avg_reward = 0;
+    size_t counter = 0;
+    for(auto choice : best_target_dest_choice){
+        cout << "\tDest:," << counter++ << ",best_reward_for_Dest:," << choice.second << endl;
+        avg_reward += choice.second;
+    }
+    avg_reward = avg_reward / float(Destinations.size());
+    cout << "avg_reward for target choice:," << avg_reward << endl;
+    return avg_reward;
+}
+
 void elapsed_time(string method, std::chrono::_V2::system_clock::time_point start_time){
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end_time - start_time;
