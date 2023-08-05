@@ -84,4 +84,5 @@ void calculate_min_path_strategy_prefixes();
 float calculate_q_recursive_prefix(unsigned node);
 void simulation_observer_prefix();
 std::pair<unsigned, float> dest_predictor_prefix(unsigned node);
+float best_avg_target_choice();
 #endif
