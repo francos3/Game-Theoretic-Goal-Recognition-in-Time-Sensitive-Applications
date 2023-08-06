@@ -79,6 +79,7 @@ int connectivity = 0;
 bool map_display = false;
 bool stocastic_go = false;
 bool stocastic_go_observer = false;
+bool stocastic_ficitious_play = false;
 int strategy = 0;
 double lambdaDest = 0;
 double Budget = 0;
@@ -149,6 +150,9 @@ int saving_groups=10;
 vector<float> avg_savings(saving_groups,0);
 bool LoadPaths;
 //std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
+vector<pair<unsigned, float> > best_target_dest_choice;
+std::shared_ptr<std::vector<std::set<unsigned int>>> paths_per_prefix;
+std::shared_ptr<std::map<std::pair<unsigned int, unsigned int>, std::set<unsigned int>>> dest_paths_per_prefix
 
 
 struct found_goal {}; // exception for termination
@@ -689,6 +693,9 @@ void random_orig_and_dest_placement_SaT()
         auto n = *select_random(nodes_set, r);
         if (n == start) //skip origin as possible destination
             continue;
+        if(all_destinations.count(n)>0){//Dest already chosen!!!
+            continue;
+        }
         Destinations.push_back(n);
         all_destinations.insert(n);
         dest_index[n] = Destinations.size() - 1;
@@ -1969,12 +1976,12 @@ void calculate_min_path_strategy_prefixes(){
     
     auto start_time = std::chrono::high_resolution_clock::now();
     string method("calculate_q_recursive");
-    auto paths_per_prefix=main_dijkstra_alg->linkPrefixToPaths();
+    paths_per_prefix=main_dijkstra_alg->linkPrefixToPaths();
     elapsed_time("linkPrefixToPaths",start_time);
     
     start_time = std::chrono::high_resolution_clock::now();
     method="get_dest_paths_per_prefix";
-    auto dest_paths_per_prefix = main_dijkstra_alg->get_dest_paths_per_prefix();
+    dest_paths_per_prefix = main_dijkstra_alg->get_dest_paths_per_prefix();
     elapsed_time(method, start_time);
 
     start_time = std::chrono::high_resolution_clock::now();
@@ -4284,6 +4291,12 @@ int main(int argc, char *argv[])
             optimize_budget = true;
             stocastic_go_observer = true;
         }
+        if (action == "stocastic_fictitious_play")
+        {
+            optimize_budget = true;
+            stocastic_go_observer = true;//for initial s
+            stocastic_ficitious_play = true;
+        }
         if (action == "min_cal")
         {
             min_cal = true;
@@ -5966,7 +5979,6 @@ float best_avg_target_choice(){
     float reward = 0;
 
     pair<unsigned, float> temp_pair(0, INT_MAX);
-    vector<pair<unsigned, float> > best_target_dest_choice;
     best_target_dest_choice.assign(Destinations.size(), temp_pair);
 
     //pair<unsigned,float> best_target_choice(0,INT_MAX);
@@ -6026,3 +6038,40 @@ void elapsed_time(string method, std::chrono::_V2::system_clock::time_point star
     auto current_time = diff.count();
     cout << method << ",time:,"<<current_time<< endl;
 };
+void fictitious_play(){
+    //For every iteration recalculate best_target_response based on the opposite player strategy
+    size_t iterations = 10;
+    //Now we need to recalculate mu and rho
+    //First recalculate cutset based on the new path_probs
+    prob_path.assign(prob_path.size(),0.0)
+    for (size_t d = 0; d < Destinations.size();d++){
+        path_prob[best_target_dest_choice[d].first]=1.0/float(Destinations.size())
+    }
+    for (auto prob: prob_path){
+        total_prob += prob;
+    }
+    cout <<"New Aggregated path_prob:,"<< total_prob << endl;
+    auto prefixes = main_dijkstra_alg->get_prefixes();
+    vector<float> prob_per_prefix(prefixes->size(), 0.0);
+    vector<vector<float>> dest_prob_per_prefix(Destinations.size(), prob_per_prefix);
+    for (size_t i = 0; i < prefixes->size(); i++)
+    {
+        for(auto path_id : paths_per_prefix->at(i)){
+            auto destination=DestinationsOrder2[paths->at(path_id).back()->getID()];
+            prob_per_prefix[i] += prob_path[path_id];
+            dest_prob_per_prefix[destination][i] += dest_prob_path[destination][path_id];
+            //cout << "\t\tprefix_id:," << i << ",path_id:," << path_id << ",prob_per_prefix[]"<<prob_per_prefix[i]<<endl;
+        }
+    }
+
+
+    start_time = std::chrono::high_resolution_clock::now();
+    string method("get_dest_paths_per_prefix");
+    auto dest_paths_per_prefix = main_dijkstra_alg->get_dest_paths_per_prefix();
+    elapsed_time(method, start_time);
+    //Second rho, the nodes in the observer cutset have 100% probability and the rest is 0.
+    
+
+
+
+}
