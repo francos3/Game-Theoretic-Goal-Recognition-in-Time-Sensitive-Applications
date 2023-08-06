@@ -152,8 +152,7 @@ bool LoadPaths;
 //std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
 vector<pair<unsigned, float> > best_target_dest_choice;
 std::shared_ptr<std::vector<std::set<unsigned int>>> paths_per_prefix;
-std::shared_ptr<std::map<std::pair<unsigned int, unsigned int>, std::set<unsigned int>>> dest_paths_per_prefix
-
+std::shared_ptr<std::map<std::pair<unsigned int, unsigned int>, std::set<unsigned int>>> dest_paths_per_prefix;
 
 struct found_goal {}; // exception for termination
 
@@ -687,14 +686,27 @@ void random_orig_and_dest_placement_SaT()
     auto n = *select_random(nodes_set, r);
     start = n;
     std::cout << "start:," << start << ",D:,";
+    auto temp_nodes_set=nodes_set;
+    temp_nodes_set.erase(start);
     while (Destinations.size() < random_positions)
     {
-        int r = rand() % nodes_set.size(); // not _really_ random
-        auto n = *select_random(nodes_set, r);
-        if (n == start) //skip origin as possible destination
+        if(temp_nodes_set.size()==0){
+            cout <<endl<< "NO MORE NODES TO CHOOSE FOR DESTINATIONS!!!" << endl;
+            exit(1);
+        }
+        int r = rand() % temp_nodes_set.size(); // not _really_ random
+        auto n = *select_random(temp_nodes_set, r);
+        if (n == start){ //skip origin as possible destination
+            temp_nodes_set.erase(n);
             continue;
-        if(all_destinations.count(n)>0){//Dest already chosen!!!
+        }
+        else if(all_destinations.count(n)>0){//Dest already chosen!!!
+            //cout << "skip prev chosen dest:" << n << endl;
+            temp_nodes_set.erase(n);
             continue;
+        }
+        else{
+            temp_nodes_set.erase(n);
         }
         Destinations.push_back(n);
         all_destinations.insert(n);
@@ -6043,8 +6055,8 @@ void fictitious_play(){
     size_t iterations = 10;
     //Now we need to recalculate mu and rho
     //First recalculate cutset based on the new path_probs
-    prob_path.assign(prob_path.size(),0.0)
-    for (size_t d = 0; d < Destinations.size();d++){
+    prob_path.assign(prob_path.size(), 0.0);
+    /*for (size_t d = 0; d < Destinations.size();d++){
         path_prob[best_target_dest_choice[d].first]=1.0/float(Destinations.size())
     }
     for (auto prob: prob_path){
@@ -6071,7 +6083,5 @@ void fictitious_play(){
     elapsed_time(method, start_time);
     //Second rho, the nodes in the observer cutset have 100% probability and the rest is 0.
     
-
-
-
+*/
 }
