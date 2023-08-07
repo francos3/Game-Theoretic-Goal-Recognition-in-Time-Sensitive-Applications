@@ -5999,6 +5999,7 @@ float best_avg_target_choice(){
         auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
         cutset_found = false;
         reward = 0;
+        int pred_dest=0;
         for (auto pref : (*prefixes_per_path)[path]){
             if(cutset_prefix.count(pref)>0){
                 /*if(cutset_found){
@@ -6010,7 +6011,10 @@ float best_avg_target_choice(){
                      << "prefix:,";
                 main_dijkstra_alg->print_prefix(pref);
                 cout << endl;*/
-                reward += main_dijkstra_alg->get_cost_to_dest(pref, path);
+                pred_dest = dest_predictor_prefix(pref).first;
+                if (pred_dest == actual_dest){
+                    reward = main_dijkstra_alg->get_cost_to_dest(pref, path);
+                }
                 cutset_found = true;
             }
             if(cutset_found){
@@ -6024,7 +6028,9 @@ float best_avg_target_choice(){
         if(best_target_dest_choice[actual_dest].second>reward){
             best_target_dest_choice[actual_dest].second=reward;
             best_target_dest_choice[actual_dest].first=path;
-            cout << "\t\t\tFound better choice, path:," << path << ",reward:," << reward <<",dest node:,"<<DestinationsOrder1[actual_dest]<<endl;
+            cout << "\t\t\tFound better choice, path["<<path<<"]:,";
+            main_dijkstra_alg->print_path(path);
+            cout << ",reward:," << reward << ",actual_dest_node:," << DestinationsOrder1[actual_dest] <<",actual_pred_dest_node:,"<<DestinationsOrder1[pred_dest]<<endl;
         }
         //if(best_target_choice.second>reward){
         //    best_target_choice.second=reward;
