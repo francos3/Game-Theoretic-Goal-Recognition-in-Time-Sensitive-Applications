@@ -22,7 +22,7 @@ struct vect_comp_int{
     //MUCH BETTER WHEN COMPARING PATHS WITH THE SAME ORIGIN POINT!
     for(int i=v1.size()-1;i>=0;i--){
       if(v1[i]!=v2[i])
-	return v1[i]<v2[i];
+  return v1[i]<v2[i];
     }
     return true;*/
   }
@@ -80,9 +80,16 @@ void calculate_all_subpaths();
 float calculate_q_path(std::pair<int,float> node,int dest,float cost);
 float calculate_q_recursive(std::pair<int,float> node,int dest);//Eq 25
 void random_orig_and_dest_placement_SaT();
-void calculate_min_path_strategy_prefixes();
+void calculate_min_path_strategy_prefixes(bool skip);
 float calculate_q_recursive_prefix(unsigned node);
 void simulation_observer_prefix();
 std::pair<unsigned, float> dest_predictor_prefix(unsigned node);
 float best_avg_target_choice();
+void fictitious_play();
+void fictitious_play2();
+void store_prev_strategies();
+void calculate_next_target_strategy();
+std::pair<unsigned, float> prev_dest_predictor_prefix(unsigned node, unsigned iter);
+std::pair<float,float> calculate_percentage_difference(std::vector<float> values, int starting_iteration);
+std::pair<float,float> calculate_statistics(const std::vector<float> &values);
 #endif
