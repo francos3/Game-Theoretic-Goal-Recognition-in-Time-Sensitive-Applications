@@ -1194,6 +1194,7 @@ int PathMatrix::remove_paths_higher_lambda(){
   }
   //After removal, we need to recalculate lambdas!
   recalculate_Path_Matrix_from_lambdas();
+  return 0;
 }
 void PathMatrix::recalculate_Path_Matrix_from_lambdas(){
   populated_lambda_values=0;
