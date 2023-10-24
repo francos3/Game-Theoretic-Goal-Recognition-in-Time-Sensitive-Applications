@@ -89,7 +89,11 @@ void fictitious_play();
 void fictitious_play2();
 void store_prev_strategies();
 void calculate_next_target_strategy();
-std::pair<unsigned, float> prev_dest_predictor_prefix(unsigned node, unsigned iter);
+//std::pair<unsigned, float> prev_dest_predictor_prefix(unsigned node, unsigned iter);
 std::pair<float,float> calculate_percentage_difference(std::vector<float> values, int starting_iteration);
 std::pair<float,float> calculate_statistics(const std::vector<float> &values);
+void store_cutset(std::set<unsigned>& cutset_prefix);
+void removeDominatedFromCutset();
+void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned int>>> edges,
+                        std::set<int> &nodesToRemove);
 #endif
