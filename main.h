@@ -95,5 +95,6 @@ std::pair<float,float> calculate_statistics(const std::vector<float> &values);
 void store_cutset(std::set<unsigned>& cutset_prefix);
 void removeDominatedFromCutset();
 void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned int>>> edges,
-                        std::set<int> &nodesToRemove);
+                        std::set<int> & nodesToRemove);
+void print_cutset_endings();
 #endif

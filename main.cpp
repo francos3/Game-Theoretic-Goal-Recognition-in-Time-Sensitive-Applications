@@ -1020,6 +1020,7 @@ void create_prefix_graph_from_SaT_file(){
     cout << "Iter:,"<<current_iter<<",cutset:," <<cutset_prefix<< endl;
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",clean_cutset:," <<cutset_prefix<< endl;
+    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(); cout << endl;
     elapsed_time(method, start_time);
     if(stocastic_ficitious_play){
         //Need to calculate initial best target choice first
@@ -6187,6 +6188,7 @@ void calculate_next_observer_strategy(){
     calculate_q_recursive_prefix(0);
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",clean_cutset:," <<cutset_prefix<< endl;
+    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(); cout << endl;
     for (auto pref : cutset_prefix){
         cout << "\t clean_cutset_pref[" << pref<<"]:,";
         main_dijkstra_alg->print_prefix(pref);
@@ -6503,4 +6505,16 @@ void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned 
         //cout << endl;
         exploreDescendants(child, edges, nodesToRemove);
     }
+}
+void print_cutset_endings(){
+    set<unsigned> ordered_endings;
+    cout << "[";
+    for(auto pref : cutset_prefix)
+    {
+        ordered_endings.insert(main_dijkstra_alg->get_prefix_ending(pref));
+    }
+    for(auto ending : ordered_endings){
+        cout<<","<<ending;
+    }
+    cout << ",]";
 }
