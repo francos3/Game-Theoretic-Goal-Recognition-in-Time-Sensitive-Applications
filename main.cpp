@@ -182,7 +182,9 @@ private:
   Vertex m_goal;
 };
 
-
+std::shared_ptr<std::vector<std::set<unsigned int>>> edges;
+std::shared_ptr<std::map<int, std::vector<BaseVertex *>>> paths;
+std::shared_ptr<std::vector<std::pair<unsigned int, unsigned int>>> prefixes;
 
 template <typename S>
 auto select_random(const S &s, size_t n)
@@ -1907,7 +1909,7 @@ float calculate_q_avg(pair<int,float> node,int dest){//Eq 23 in paper,\bar{q}
 float calculate_q_recursive(pair<int,float> node,int dest){//Eq 25 in paper,\bar{q}
 //q(s,d)=Sum_{s'\inX}Alpha^{d}_{ss'}{q(s',d)+W_{s,s'}}
 //q((d,x),d)=0 for all xa
-    std::cout<<"hola1"<<flush<<endl;
+    //std::cout<<"hola1"<<flush<<endl;
     auto AG_SG_Edges = main_dijkstra_alg->getSGEdges();
     if(all_destinations.count(node.first)>0){//Destination node
         return 0;
@@ -1915,13 +1917,13 @@ float calculate_q_recursive(pair<int,float> node,int dest){//Eq 25 in paper,\bar
     float sum=0;
     auto orig_vertex = main_graph.get_vertex(node.first);
     for (auto child_node : (*AG_SG_Edges)[dest][node.first]){
-        std::cout<<"\tsum1="<<sum<<flush<<endl;
+        //std::cout<<"\tsum1="<<sum<<flush<<endl;
         auto dest_vertex = main_graph.get_vertex(child_node);
         float x = node.second + main_graph.get_edge_weight(orig_vertex, dest_vertex);
         auto key=make_pair(make_pair(node.first, node.second), make_pair(child_node, x));
         sum+=Alpha[dest][key]*(calculate_q_recursive(make_pair(child_node,x),dest)+ main_graph.get_edge_weight(orig_vertex, dest_vertex));
     }
-    std::cout<<"sum2="<<sum<<flush<<endl;
+    //std::cout<<"sum2="<<sum<<flush<<endl;
     return sum;
 }
 
@@ -1933,7 +1935,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     //Loop through all paths and count number of paths per detination
     //All destinations have equal likelyhood and all paths to same destination get an even dirstribution of that probability
     //First how many paths per destination
-    auto paths = main_dijkstra_alg->getAGpaths2();
+    paths = main_dijkstra_alg->getAGpaths2();
     vector<int> PathsPerDestination(Destinations.size(),0);
     map<int,int> PathsToDestination;
     vector<double> ProbPerDestinationPath;
@@ -1955,7 +1957,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
         double PathCost = 0;
         set<int> PathsToEliminate;
         for(auto path : *paths){
-            //cout << "\t working on path:" << counter++ <<",checking strategy compatibility"<< endl;
+            //cout << "\t working on path:" << counter++ <<",checking strategy compatibility"<< flush<<endl;
             //PathCost = 0;
             //for (size_t i=0;i<path.second.size()-1;i++){
             //    PathCost+= main_graph.get_edge_weight(path.second[i], path.second[i+1]);
@@ -2009,7 +2011,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     cout << "out of skip1" << endl;
 
     //Now calculate probabilty per prefix. Each prefix gets the probability of all possible paths it is part of.
-    auto prefixes = main_dijkstra_alg->get_prefixes();
+    prefixes = main_dijkstra_alg->get_prefixes();
     vector<float> prob_per_prefix(prefixes->size(), 0.0);
     dest_prob_per_prefix.assign(Destinations.size(), prob_per_prefix);
     
@@ -2137,7 +2139,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     //Now we calculate AlphaPrefix which is the transition probability between 2 adjacent prefixes
     start_time = std::chrono::high_resolution_clock::now();
     method = "AlphaPrefix";
-    auto edges = main_dijkstra_alg->getAGPEdges();
+    edges = main_dijkstra_alg->getAGPEdges();
     unsigned parent = 0;
     for(auto children : *edges){
         if(prob_per_prefix[parent]==0.0){
@@ -2521,7 +2523,7 @@ void simulation_observer_prefix()
     float r;
     size_t counter = 0;
     float cost1 = 0;
-    auto paths = main_dijkstra_alg->getAGpaths2();
+    paths = main_dijkstra_alg->getAGpaths2();
     int temp_seed = rand() % (RAND_MAX);
     static int simulation_run=0;
     int saving_group = simulation_run / (simulation_runs / saving_groups);
@@ -5957,9 +5959,9 @@ void calculate_all_subpaths(){
     //std::cout<<"paths:"<<(*paths).size()<<",subpathcounter:,"<<counter<<endl;
 }
 float calculate_q_recursive_prefix(unsigned node){
-    auto edges = main_dijkstra_alg->getAGPEdges();
-    auto paths = main_dijkstra_alg->getAGpaths2();
-    auto prefixes = main_dijkstra_alg->get_prefixes();
+    //auto edges = main_dijkstra_alg->getAGPEdges();
+    //auto paths = main_dijkstra_alg->getAGpaths2();
+    //auto prefixes = main_dijkstra_alg->get_prefixes();
     //cout << "hola1" << endl;
     if((*prefixes)[node].second==(*paths)[(*prefixes)[node].first].size()-1){
         //cout << "\tnode is destination node" << endl;
@@ -5987,7 +5989,7 @@ float calculate_q_recursive_prefix(unsigned node){
         //cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
         cutset_prefix.insert(node);
     }
-    else if(sum<avg_q_prefix[node]){
+    /*else if(sum<avg_q_prefix[node]){
         //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
         //cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
@@ -5997,7 +5999,7 @@ float calculate_q_recursive_prefix(unsigned node){
     else{
         //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
         //cout << " does1 not belong to cutset,sum_prefix:" << phi_prefix[node] << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
-    }
+    }*/
     phi_prefix[node] = max(sum, avg_q_prefix[node]);
     return phi_prefix[node];
 }
@@ -6307,8 +6309,9 @@ void fictitious_play(){
     size_t iterations = 10;
     lambdaDest = 1.0 / float(Destinations.size());
     float total_prob = 0;
-    auto prefixes = main_dijkstra_alg->get_prefixes();
-    auto paths = main_dijkstra_alg->getAGpaths2();
+    edges = main_dijkstra_alg->getAGPEdges();
+    prefixes = main_dijkstra_alg->get_prefixes();
+    paths = main_dijkstra_alg->getAGpaths2();
     vector<vector<float> > prev_prob;
     //vector<float> avg_dest_prob_path;
     float temp_avg = 0;
@@ -6483,7 +6486,7 @@ void store_cutset(set<unsigned>& cutset_prefix){
 
 void removeDominatedFromCutset(){
     set<int> nodesToRemove;
-    auto edges = main_dijkstra_alg->getAGPEdges();
+    //auto edges = main_dijkstra_alg->getAGPEdges();
     
     for (const auto& node : cutset_prefix) {
         exploreDescendants(node, edges, nodesToRemove);
