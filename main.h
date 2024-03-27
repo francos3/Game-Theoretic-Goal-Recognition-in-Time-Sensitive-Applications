@@ -47,7 +47,8 @@ std::ostream& operator<<(std::ostream& os, const std::set<T>& v)
         if (it != *v.rbegin()) 
             os << ","; 
     } 
-    os << "]\n"; 
+    os << "]"; 
+    //os << "]\n"; 
     return os; 
 } 
 
@@ -89,6 +90,7 @@ void fictitious_play();
 void fictitious_play2();
 void store_prev_strategies();
 void calculate_next_target_strategy();
+void calculate_next_target_strategy2();
 //std::pair<unsigned, float> prev_dest_predictor_prefix(unsigned node, unsigned iter);
 std::pair<float,float> calculate_percentage_difference(std::vector<float> values, int starting_iteration);
 std::pair<float,float> calculate_statistics(const std::vector<float> &values);
@@ -96,5 +98,9 @@ void store_cutset(std::set<unsigned>& cutset_prefix);
 void removeDominatedFromCutset();
 void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned int>>> edges,
                         std::set<int> & nodesToRemove);
-void print_cutset_endings();
+void print_cutset_endings(std::set<unsigned>& cut);
+void read_paths_from_file();
+void calculate_mu_rho_reward();
+void calculate_cut_prob(unsigned path,unsigned pref);
+float modified_q(float q);
 #endif

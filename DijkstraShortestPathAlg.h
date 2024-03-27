@@ -15,6 +15,7 @@
 
 using namespace std;
 #include <stack>
+#include <algorithm>
 
 class DijkstraShortestPathAlg
 {
@@ -179,7 +180,7 @@ public:
     //void calculateMinPathStrategy();
     void populateAGnodes();
     void populateAGPnodes();
-    void load_paths();
+    void load_paths(vector<vector<unsigned>> input_paths);
     void print_prefix(unsigned pref){
         for (size_t i = 0; i <= prefixes[pref].second;i++)
             cout << AGpaths2[prefixes[pref].first][i]->getID()<<","<<flush;
@@ -192,6 +193,9 @@ public:
         for (auto node : AGpaths2[id])
             cout<<node->getID()<<",";
     }
+    size_t path_size(unsigned id){
+        return AGpaths2[id].size();
+    }
     float get_path_cost(std::vector<BaseVertex*> *path){
         float cost = 0;
         for (size_t i = 0; i < path->size() - 1; i++)
@@ -201,6 +205,7 @@ public:
             //cout << "parent:" << parent->getID() << flush << endl;
             cost += m_pDirectGraph->get_edge_weight(parent, child);
         }
+        //cost = cost * cost;
         return cost;
     }
 
@@ -221,7 +226,8 @@ public:
         // cout << "\t\tcost from:"; print_prefix(pref); cout<<"for path:";
         // print_path(path);
         // cout << ", is:," << cost << endl;
-            return cost;
+        //cost = cost * cost;
+        return cost;
     }
     float get_pref_cost(unsigned pref){
         //cout << "hola cost_to_dest" << flush<<endl;
@@ -238,11 +244,26 @@ public:
         }
         cout << "\t\tcost to:"; print_prefix(pref); cout<<"for path:"; print_path(prefixes[pref].first);
         cout << ", is:," << cost << endl;
+        //cost = cost * cost;
         return cost;
     }
 
 
 
+template <typename T>
+bool is_prefix(const std::vector<T>& prefix, const std::vector<T>& vec,size_t pref_size) {
+    if (pref_size >= vec.size()) return false; // A prefix can't be longer than the vector itself.
+
+    //for (size_t i = 0; i < pref_size; ++i) 
+    for (size_t i = 0; i <= pref_size; i++) {
+        //if (prefix[pref_size - 1 - i]->getID() != vec[vec.size() - 1 - i]->getID()) 
+        //    return false;
+        if(prefix[i]->getID()!=vec[i]->getID())
+            return false;
+    }
+    return true;
+    //return std::equal(prefix.begin(), prefix.end(), vec.begin());
+}
     //void expand_AG(double Budget);
 protected:
     bool stuck( BaseVertex* source, BaseVertex* sink);
@@ -253,3 +274,4 @@ protected:
     void improve2vertexKeepPaths( BaseVertex* cur_vertex_pt, bool is_source2sink, float lambda_limit );
     void add_full_paths(std::map<int,BasePath*> origin_optimal_paths);
 };
+                

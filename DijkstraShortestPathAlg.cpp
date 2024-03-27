@@ -724,19 +724,30 @@ std::shared_ptr<vector<set<unsigned> > > DijkstraShortestPathAlg::linkPrefixToPa
         if(i%500)
             cout << "i:" << i++ << endl;
         for (auto pref : prefixes){
-            if(std::includes(container.second.begin(),container.second.end(),AGpaths2[pref.first].begin(),AGpaths2[pref.first].begin()+1+pref.second)){
+            //if(std::includes(container.second.begin(),container.second.end(),AGpaths2[pref.first].begin(),AGpaths2[pref.first].begin()+1+pref.second))
+            if(is_prefix(AGpaths2[pref.first],container.second,pref.second)){
                 paths_per_prefix[counter_prefix].insert(container.first);
                 prefixes_per_path[container.first].push_back(counter_prefix);
                 dest_paths_per_prefix[make_pair(dest, counter_prefix)].insert(container.first);
                 //cout << "prefix:" << counter_prefix << " is included in path:" << container.first << endl;
-                //cout << "subpath:";
-                //for (size_t i = 0; i <= pref.second; i++)
-                //    cout << AGpaths2[pref.first][i]->getID() << ",";
-                //cout << "is included in path:";
-                //for (auto node : container.second)
-                //    cout << node->getID() << ",";
-                //cout << endl;
+                /*cout << "subpath:";
+                for (size_t i = 0; i <= pref.second; i++)
+                    cout << AGpaths2[pref.first][i]->getID() << ",";
+                cout << "is included in path:";
+                for (auto node : container.second)
+                    cout << node->getID() << ",";
+                cout << endl;*/
             }
+            /*else{
+                cout << "subpath:";
+                for (size_t i = 0; i <= pref.second; i++)
+                    cout << AGpaths2[pref.first][i]->getID() << ",";
+                cout << "is NOT included in path:";
+                for (auto node : container.second)
+                    cout << node->getID() << ",";
+                cout << endl;
+
+            }*/
             counter_prefix++;
         }
     }
@@ -990,9 +1001,10 @@ void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, 
     {
         ++i;
         BasePath current_path = *(yenAlg.next());
-        if (current_path.length() > budget)
+        if (current_path.Weight() > budget)
         {
             //std::cout<<"paths_created for current destination:"<<d<<",finish, all future paths will have length bigger than:"<<current_path.length()<<",max_length allowed:"<<C<<endl;
+            std::cout<<"k:,"<<k<<",i:,"<<i-1<<",paths_created for current destination:,"<<sink->getID()<<",finished, all future paths will have budget bigger than:,"<<current_path.Weight()<<",max_budget allowed:"<<budget<<endl;
             break;
         }
         /*if (budget == INT_MAX)
@@ -1005,7 +1017,7 @@ void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, 
         //current_path.add_paths_set(all_paths);
         //MAKE THIS MORE EFFICIENT USING POINTERS
         current_path.GetVertexVector(AGpath);
-        //cout << "i:"<<i<<",path:,";
+        //cout << "i:"<<i<<",yen_path:,";
         //for (auto node : AGpath)
         //    cout<<node->getID()<<",";
         //cout << endl;
@@ -1348,29 +1360,16 @@ bool DijkstraShortestPathAlg::stuck(BaseVertex *source, BaseVertex *sink)
 //	}
 //}
 
-void DijkstraShortestPathAlg::load_paths(){
-    //std::vector<std::vector<int>> vec;
-    string filename = "paths.txt";
-    std::ifstream infile(filename);
-
-    if (!infile) {
-        std::cerr << "Failed to open file: " << filename << '\n';
-        exit(10);
-    }
-
-    std::string line;
-    while (std::getline(infile, line)) {
-        std::vector<int> row;
-        std::istringstream iss(line);
-        std::string val;
+void DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths){
+    for(auto path : input_paths){
         AGpath.clear();
-        while (std::getline(iss, val, ',')) {
-            AGpath.push_back((*m_pDirectGraph).get_vertex(std::stoi(val)));
+        for (auto node : path){
+            AGpath.push_back((*m_pDirectGraph).get_vertex(node));
         }
         AGpaths.insert(AGpath);
-        //cout << "Agpath:";
-        //for (auto node : AGpath)
-        //    cout<<node->getID()<<",";
-        //cout << endl;
+        cout << "Agpath:";
+        for (auto node : AGpath)
+            cout<<node->getID()<<",";
+        cout << endl;
     }
 }

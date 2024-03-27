@@ -97,6 +97,8 @@ set<unsigned> cutset_prefix;
 //vector< set<unsigned> > prev_cutset_prefix;
 vector< pair<unsigned, set<unsigned> > > prev_cutset_prefix;
 //[iters][cut][repetitions,d0,d1,...dn]
+vector<map<unsigned,vector<unsigned> > > prev_reward_per_prefix;    
+map<unsigned,vector<unsigned> > merged_prev_cut_data;
 vector<map<unsigned,vector<unsigned> > > prev_cut_data;
 
 map<pair<int,float>,float> zeta_obs;
@@ -155,15 +157,22 @@ float savings_adj_prefix=0;
 size_t simulation_runs = 100000;
 int saving_groups=10;
 vector<float> avg_savings(saving_groups,0);
-bool LoadPaths;
+bool LoadPaths=false;
+string input_paths_file = "input_paths.txt";
+vector<vector<unsigned>> input_paths;
 //std::map<std::pair<int,float>,std::pair<int,float> > obs_est_dest;
 vector<pair<unsigned, float> > best_target_dest_choice;
 vector<vector<pair<unsigned, float> > > prev_best_target_dest_choice;
 std::shared_ptr<std::vector<std::set<unsigned int>>> paths_per_prefix;
 std::shared_ptr<std::map<std::pair<unsigned int, unsigned int>, std::set<unsigned int>>> dest_paths_per_prefix;
 vector<float> target_iterative_rewards;
-size_t iterations=0;
+size_t iterations=10000;
 size_t current_iter=0;
+float saturation=0;
+int q_type = 0;
+int total_cutsets = 0;
+
+
 
 struct found_goal {}; // exception for termination
 
@@ -184,6 +193,7 @@ private:
 
 std::shared_ptr<std::vector<std::set<unsigned int>>> edges;
 std::shared_ptr<std::map<int, std::vector<BaseVertex *>>> paths;
+//std::map<int, map<int,float> > prob_cuts_per_path;
 std::shared_ptr<std::vector<std::pair<unsigned int, unsigned int>>> prefixes;
 
 template <typename S>
@@ -985,7 +995,7 @@ void create_prefix_graph_from_SaT_file(){
     }
     if(LoadPaths){
         cout << "Loading paths from paths.txt for debugging" << endl;
-        main_dijkstra_alg->load_paths();
+        main_dijkstra_alg->load_paths(input_paths);
     }
     else{//remove paths.txt if it exists before appending to it
         const char* filename = "paths.txt";
@@ -1019,10 +1029,10 @@ void create_prefix_graph_from_SaT_file(){
     auto start_time = std::chrono::high_resolution_clock::now();
     string method("calculate_q_recursive");
     calculate_q_recursive_prefix(0);
-    cout << "Iter:,"<<current_iter<<",cutset:," <<cutset_prefix<< endl;
+    //cout << "Iter:,"<<current_iter<<",cutset:," <<cutset_prefix<< endl;
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",clean_cutset:," <<cutset_prefix<< endl;
-    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(); cout << endl;
+    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(cutset_prefix); cout << endl;
     elapsed_time(method, start_time);
     if(stocastic_ficitious_play){
         //Need to calculate initial best target choice first
@@ -1931,7 +1941,7 @@ float calculate_q_recursive(pair<int,float> node,int dest){//Eq 25 in paper,\bar
 void calculate_min_path_strategy_prefixes(bool skip=false){
     //When using only prefixes
     double lambdaDest = 1.0 / double(Destinations.size());
-    std::cout << "hola calculate_min_path_strategy_prefixes based on full paths" << endl;
+    //std::cout << "hola calculate_min_path_strategy_prefixes based on full paths" << endl;
     //Loop through all paths and count number of paths per detination
     //All destinations have equal likelyhood and all paths to same destination get an even dirstribution of that probability
     //First how many paths per destination
@@ -2008,7 +2018,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
         }
         cout <<"Aggregated path_prob:,"<< total_prob << endl;
     }
-    cout << "out of skip1" << endl;
+    //cout << "out of skip1" << endl;
 
     //Now calculate probabilty per prefix. Each prefix gets the probability of all possible paths it is part of.
     prefixes = main_dijkstra_alg->get_prefixes();
@@ -2053,11 +2063,11 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
             if(prob_per_prefix[i]>0){
                 auto id = make_pair(i, path_id);
                 prefix_prob_path[id] = prob_path[path_id] / prob_per_prefix[i];
-                if(prefix_prob_path[id]>0){
+                //if(prefix_prob_path[id]>0){
                     //cout << "\t Iter:" << current_iter << ",prefix_prob_path[(," << i << "," << path_id << ",)]:," << prefix_prob_path[id] << ",pref:";
                     //main_dijkstra_alg->print_prefix(i);
                     //cout<< endl;
-                }
+                //}
             }
         }
     }
@@ -2098,7 +2108,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     method="q_given_dest_and_prefix_time";
     for(size_t dest=0;dest<Destinations.size();dest++){
         for(size_t pref=0;pref<prefixes->size();pref++){
-            //cout << "\tcalculating lambda and q per dest and prefix" << flush << endl;
+            //cout << "\tcalculating lambda and q per dest and prefix(" <<dest<<","<<pref<<")"<< flush << endl;
             auto id = make_pair(dest, pref);
             auto it = dest_paths_per_prefix->find(id);
             if(it==dest_paths_per_prefix->end())
@@ -2110,16 +2120,21 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
                 if(prob_per_path_given_dest_and_prefix[dest][id]<0.00001)
                     continue;
                 lambda_obs_dest_given_prefix[dest][pref] += prefix_prob_path[id];
-                q_given_dest_and_prefix[dest][pref] += prob_per_path_given_dest_and_prefix[dest][id]*main_dijkstra_alg->get_cost_to_dest(pref,pth);
-                /*if(pref==5){
-                    cout << "\t\tIter:," << current_iter << "pref:," << pref << ",d:," << dest << ",prob:,";
-                    cout<<prob_per_path_given_dest_and_prefix[dest][id] << ",cost:," << main_dijkstra_alg->get_cost_to_dest(pref, pth) << ",partial q_given_dest_and_prefix:," << prob_per_path_given_dest_and_prefix[dest][id] * main_dijkstra_alg->get_cost_to_dest(pref, pth) << endl;
-                }*/
+                q_given_dest_and_prefix[dest][pref] += prob_per_path_given_dest_and_prefix[dest][id]*(modified_q(main_dijkstra_alg->get_cost_to_dest(pref,pth)));
+                //q_given_dest_and_prefix[dest][pref] = modified_q(q_given_dest_and_prefix[dest][pref]);
+                //if(pref==0||pref==1||pref==175){
+                //    cout << "\t\tIter:," << current_iter << ",pref:," << pref << ",d:," << dest << ",prob:,";
+                //    cout<<prob_per_path_given_dest_and_prefix[dest][id] << ",cost:," << main_dijkstra_alg->get_cost_to_dest(pref, pth) << ",partial q_given_dest_and_prefix:," << prob_per_path_given_dest_and_prefix[dest][id] * main_dijkstra_alg->get_cost_to_dest(pref, pth) << endl;
+                //}
             }
+           //if(saturation>0){
+           //     q_given_dest_and_prefix[dest][pref] = min((float) 1.0, q_given_dest_and_prefix[dest][pref]);
+           //}
             //cout << "\t lambda_obs_dest_given_prefix[,"<<dest<<",][,"<<pref<<",]:," << lambda_obs_dest_given_prefix[dest][pref] << flush<<endl;
-            /*if(pref==5){
-                cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
-            }*/
+            
+            //if(pref==0||pref==1||pref==175){
+            //    cout << "\t q_given_dest_and_prefix[,"<<dest<<",][,"<<pref<<",]:," << q_given_dest_and_prefix[dest][pref] << flush<<endl;
+            //}
         }
     }
     elapsed_time(method, start_time);
@@ -2128,9 +2143,15 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     phi_prefix.assign(prefixes->size(), 0.0);//Here is a good point to resize it as well.
     for(size_t pref=0;pref<prefixes->size();pref++){
         for(size_t dest=0;dest<Destinations.size();dest++){
+            //avg_q_prefix[pref] = max((float) 2.0,max(avg_q_prefix[pref], lambda_obs_dest_given_prefix[dest][pref]*q_given_dest_and_prefix[dest][pref]));
             avg_q_prefix[pref] = max(avg_q_prefix[pref], lambda_obs_dest_given_prefix[dest][pref]*q_given_dest_and_prefix[dest][pref]);
+            //if(saturation>0){
+            //    avg_q_prefix[pref]=min((float)1.0,avg_q_prefix[pref]);
+            //}
         }
-        //cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] <<endl;
+        //if(pref==0||pref==1||pref==175){
+        //    cout << "\t avg_q_prefix[,"<<pref<<",]:," << avg_q_prefix[pref] <<endl;
+        //}
     }
 
     //Now we can calculate q_avg as the max estimated q reward for any destination for a given prefix
@@ -4312,6 +4333,7 @@ int main(int argc, char *argv[])
         if (action == "load_paths")
         {
             LoadPaths = true;
+            read_paths_from_file();
         }
         if (action == "debug")
         {
@@ -4435,6 +4457,20 @@ int main(int argc, char *argv[])
             optimal_limit = stof(temp);
             std::cout << "O:" << optimal_limit << endl;
         }
+        if (action.find("sat=") != string::npos)
+        {
+            string temp = action.substr(4, action.length());
+            //cout << "temp:" << temp << flush << endl;
+            saturation = stof(temp);
+            std::cout << "sat:," << saturation << endl;
+        }
+        if (action.find("type=") != string::npos)
+        {
+            string temp = action.substr(5, action.length());
+            //cout << "temp:" << temp << flush << endl;
+            q_type = stoi(temp);
+            std::cout << "q_type:," << q_type << endl;
+        }
         if (action.find("K=") != string::npos)
         {
             string temp = action.substr(2, action.length());
@@ -4481,6 +4517,12 @@ int main(int argc, char *argv[])
             random_seed = stoi(temp);
             std::cout << "Using random seed=" << random_seed << endl;
         }
+        if (action.find("I=") != string::npos)
+        {
+            string temp = action.substr(2, action.length());
+            iterations = stoi(temp);
+            std::cout << "Random Simulation Iterations=" << iterations << endl;
+        }
         if (action.find("N=") != string::npos)
         {
             Destinations.clear();
@@ -4515,6 +4557,11 @@ int main(int argc, char *argv[])
             acyclic = false;
             grandparent_check = true;
             std::cout<<"grandparent_check="<<grandparent_check<<endl;
+        }
+        if (action.find("i=") != string::npos){
+            string temp = action.substr(2, action.length());
+            iterations = stoi(temp);
+            std::cout << "iterations:" << iterations << endl;
         }
     }
     //Check input file exists
@@ -5982,24 +6029,23 @@ float calculate_q_recursive_prefix(unsigned node){
     }
     //phi_prefix[node] = sum;
     //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
-    if(avg_q_prefix[node]>=sum){
+    if(avg_q_prefix[node]>=0.98*sum){//To account for rounding errors
         //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
         //cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node];
-        auto pred=dest_predictor_prefix(node);
+        //auto pred=dest_predictor_prefix(node);
         //cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
         cutset_prefix.insert(node);
     }
-    /*else if(sum<avg_q_prefix[node]){
+    //else{
         //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
         //cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
         //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
+        //auto pred=dest_predictor_prefix(node);
+        //cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
         //phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
         //cout << "\tphi second term is lower than avg_q_prefix,so maximizing:" << node << endl;
-    }
-    else{
-        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        //cout << " does1 not belong to cutset,sum_prefix:" << phi_prefix[node] << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
-    }*/
+    //}
+    //phi_prefix[node] = max((float) 2.0,max(sum, avg_q_prefix[node]));
     phi_prefix[node] = max(sum, avg_q_prefix[node]);
     return phi_prefix[node];
 }
@@ -6036,14 +6082,17 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
             continue;//destination prob is 0 for this path
         }
         avg_q = lambda_obs_dest_given_prefix[d][node] * q_given_dest_and_prefix[d][node];
-        //if(node==155){
-        //    cout<<"\td:"<<d<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
-        //}
+        if(node==0||node==1||node==175){
+            //cout<<"\td:"<<d<<",node:,"<<node<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
+        }
         if(avg_q>max_q){
             chosen_dest=d;
             max_q = avg_q;
         }
     }
+    //if(node==0||node==1||node==175){
+        //cout<<"\tchosen_dest:,"<<chosen_dest<<",node:,"<<node<<"max_q:,"<<max_q<<endl;
+    //}
     return make_pair(chosen_dest,max_q);
 }
 float best_avg_target_choice(){
@@ -6078,7 +6127,8 @@ float best_avg_target_choice(){
                 cout << endl;*/
                 pred_dest = dest_predictor_prefix(pref).first;
                 if (pred_dest == actual_dest){
-                    reward = main_dijkstra_alg->get_cost_to_dest(pref, path);
+                    //reward = main_dijkstra_alg->get_cost_to_dest(pref, path);
+                    reward = modified_q(main_dijkstra_alg->get_cost_to_dest(pref, path));
                     cutset_pref = pref;
                 }
                 //cout<<"\tFound " <<reward<<" reward for target, pred_dest:"<<pred_dest;
@@ -6098,34 +6148,56 @@ float best_avg_target_choice(){
         }
         //check if we found a cheaper path for target to pick for actual dest and overall
         //cout << "\t\t\t\treward:" << reward << ",dest:" << actual_dest << endl;
-        if(best_target_dest_choice[actual_dest].second>reward){
-            //cout << "\t\t\tpref:";
-            //main_dijkstra_alg->print_prefix(cutset_pref);
-            best_target_dest_choice[actual_dest].second=reward;
-            best_target_dest_choice[actual_dest].first=path;
-            //cout << ",Found better choice, path["<<path<<"]:,";
-            //main_dijkstra_alg->print_path(path);
-            //cout << ",reward:," << reward << ",actual_dest_node:," << DestinationsOrder1[actual_dest] <<",actual_pred_dest_node:,"<<DestinationsOrder1[pred_dest]<<endl;
+        if(best_target_dest_choice[actual_dest].second>=(reward*0.98)){//Add equal to allow for choosing shorter paths
+            //preference of shorter path if reward is basically the same
+            if(best_target_dest_choice[actual_dest].second>=(reward*0.98)&& best_target_dest_choice[actual_dest].second<(reward*1.02)){
+                if(main_dijkstra_alg->path_size(path)<main_dijkstra_alg->path_size(best_target_dest_choice[actual_dest].first)){//New path is shorter and same reward because of rounding errors
+                    //cout << "\t\tIter:," << prev_cutset_prefix.size();
+                    best_target_dest_choice[actual_dest].second=reward;
+                    best_target_dest_choice[actual_dest].first=path;
+                    //cout << ",updating partial better choice, path["<<path<<"]:,";
+                    main_dijkstra_alg->print_path(path);
+                    //cout << ",reward:," << reward << endl;
+
+                }
+            }
+            else{
+                //cout << "\t\t\tpref:";
+                //main_dijkstra_alg->print_prefix(pref);
+                //cout << "\t\tIter:," << prev_cutset_prefix.size();
+                best_target_dest_choice[actual_dest].second=reward;
+                best_target_dest_choice[actual_dest].first=path;
+                //cout << ",skipping partial better choice, path["<<path<<"]:,";
+                //main_dijkstra_alg->print_path(path);
+                //cout << ",reward:," << reward <<",best_reward"<<best_target_dest_choice[actual_dest].second<<endl;
+                }
         }
-        //if(best_target_choice.second>reward){
-        //    best_target_choice.second=reward;
-        //    best_target_choice.first=path;
-        //    cout << "Found better overall choice, path:," << path << ",reward:," << reward <<",dest node:,"<<DestinationsOrder1[actual_dest]<<endl;
+        //else{
+            //cout << "\t\t\tpref:";
+            //main_dijkstra_alg->print_prefix(pref);
+            //cout << "\t\tIter:," << prev_cutset_prefix.size();
+            //cout << ",skipping partial worse choice, path["<<path<<"]:,";
+            //main_dijkstra_alg->print_path(path);
+            //cout << ",reward:," << reward <<",best_reward"<<best_target_dest_choice[actual_dest].second<<endl;
         //}
     }
     //Now calculate best_average_choice
     float avg_reward = 0;
     size_t counter = 0;
     for(auto choice : best_target_dest_choice){
-        cout << "Iter:," << current_iter;
-        cout << ",Found better choice, path["<<choice.first<<"]:,";
-        main_dijkstra_alg->print_path(choice.first);
-        cout << ",reward:," << choice.second << endl;
+        if(debug){
+            cout << "Iter:," << current_iter;
+            cout << ",1Found better choice, path["<<choice.first<<"]:,";
+            main_dijkstra_alg->print_path(choice.first);
+            cout << ",reward:," << choice.second << endl;
+        }
         //cout << "\tDest:," << counter++ << ",best_reward_for_Dest:," << choice.second << endl;
         avg_reward += choice.second;
     }
     avg_reward = avg_reward / float(Destinations.size());
-    cout << "Iter:," << current_iter<<",avg_reward for target choice:," << avg_reward << endl;
+    if(debug){
+        cout << "Iter:," << current_iter<<",avg_reward for target choice:," << avg_reward << endl;
+    }
     return avg_reward;
 }
 
@@ -6155,6 +6227,7 @@ void calculate_next_observer_strategy(){
     auto paths = main_dijkstra_alg->getAGpaths2();
     auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
     
+    auto previousTime = std::chrono::high_resolution_clock::now();
     //Reset the necessary calculations
     //for (size_t d = 0; d < Destinations.size();d++){
     //    std::fill(dest_prob_per_prefix[d].begin(), dest_prob_per_prefix[d].end(), 0.0);//fastest reset
@@ -6183,23 +6256,25 @@ void calculate_next_observer_strategy(){
         prob_path[p.first]=weight*lambdaDest;
         //cout<<",prob_path["<<p.first<<"],"<< prob_path[p.first]<<endl;
     }
+    elapsed_time("\t\tSetup_observer_aggregated_target_paths", previousTime);
     calculate_min_path_strategy_prefixes(true);
     //Now we calculate recursively phi and Cutset starting at origin
     auto start_time = std::chrono::high_resolution_clock::now();
     string method("calculate_q_recursive");
-    calculate_q_recursive_prefix(0);
+    float cutset_reward=calculate_q_recursive_prefix(0);
     removeDominatedFromCutset();
-    cout << "Iter:,"<<current_iter<<",clean_cutset:," <<cutset_prefix<< endl;
-    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(); cout << endl;
-    for (auto pref : cutset_prefix){
-        cout << "\t clean_cutset_pref[" << pref<<"]:,";
-        main_dijkstra_alg->print_prefix(pref);
-        //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
-        auto pred_dest = dest_predictor_prefix(pref).first;
-        cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
-    }
+    cout << "Iter:,"<<current_iter<<",cutset_reward:,"<<cutset_reward<<",clean_cutset:," <<cutset_prefix<< endl;
+    cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(cutset_prefix); cout << endl;
+    //if(debug){
+        for (auto pref : cutset_prefix){
+                cout << "\t cutset_pref[" << pref<<"]:,";
+                main_dijkstra_alg->print_prefix(pref);
+                //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
+                auto pred_dest = dest_predictor_prefix(pref).first;
+                cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
+        }
+    //}
     elapsed_time(method, start_time);
-
 }
 void calculate_next_target_strategy(){
     cout << "Calling calculate_next_target_strategy,Iter:," << current_iter<<endl;
@@ -6211,10 +6286,27 @@ void calculate_next_target_strategy(){
     vector<bool> cutsets_found(prev_cutset_prefix.size(),false);
     unsigned cutsets_counter = 0;
     unsigned cutsets_found_counter = 0;
+    //HACK TO TEST OBSERVER REACTION TO PATHSET RATIOS IN EXAMPLE3
+    /*int path1=0;int path2=0;
+    auto n = rand() % 100;
+    if(n<60){
+        path1 = 0;
+        path2 = 1;
+    }
+    else{
+        path1=2;
+        path2=3;
+    }*/
     //Calculate new target pathset based on the average of previous cutsets
     //Iterate over each path and calculate target best response ()
+    auto previousTime = std::chrono::high_resolution_clock::now();
+
     for(size_t path=0;path<paths->size();path++){
-        //cout << "path:," << path <<flush<< endl;
+        //auto currentTime = std::chrono::high_resolution_clock::now();
+        //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - previousTime);
+        //cout << "path:," << path <<",time:"<<duration.count()<<endl;
+        //previousTime = std::chrono::high_resolution_clock::now();
+
         auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
         reward = 0;
         cutsets_found.assign(prev_cutset_prefix.size(),false);
@@ -6239,7 +6331,15 @@ void calculate_next_target_strategy(){
                     //auto pred_dest = prev_dest_predictor_prefix(pref,iter).first;
                     //cout<<"\tcutset:,"<<pref<<"[";main_dijkstra_alg->print_prefix(pref);
                     //cout<<"],for path:,"<<path<<",found,pred_dest:,"<<pred_dest<<",actual_dest:,"<<actual_dest<<",repetitions:,"<<temp_cutset.first<<endl;
-                    auto weight = main_dijkstra_alg->get_cost_to_dest(pref, path);
+                    //auto weight = main_dijkstra_alg->get_cost_to_dest(pref, path);
+                    auto weight = modified_q(main_dijkstra_alg->get_cost_to_dest(pref, path));
+                    //SQUARE WEIGHT HACK
+                    //weight = weight * weight;
+                    //if(saturation>0){
+                    //    weight = weight / saturation;
+                    //    weight = min(weight, (float)1.0);
+                    //}
+                    //weight = modified_q(weight);
                     if(prev_cut_data[iter][pref][actual_dest]>0){
                         reward += (weight * float(prev_cut_data[iter][pref][actual_dest]));
                     }
@@ -6259,17 +6359,32 @@ void calculate_next_target_strategy(){
             }
         }
         reward = (reward / float(current_iter+1));
-        //cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:," << path << endl;
+        //if(saturation>0)
+        //    reward = min(reward, (float)1.0);
+        //cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
+        //main_dijkstra_alg->print_path(path);
+        //cout << endl;
+
         //Now update the best_path for the target for this destination if necessary
-        if(best_target_dest_choice[actual_dest].second>reward){
-            //cout << "\t\t\tpref:";
-            //main_dijkstra_alg->print_prefix(pref);
-            //cout << ",Iter:," << prev_cutset_prefix.size() << endl;
-            best_target_dest_choice[actual_dest].second=reward;
-            best_target_dest_choice[actual_dest].first=path;
-            //cout << ",Found better choice, path["<<path<<"]:,";
-            //main_dijkstra_alg->print_path(path);
-            //cout << ",reward:," << reward << endl;
+        //if(path==path1||path==path2)
+        if(best_target_dest_choice[actual_dest].second>=(reward*0.98)){//Add equal to allow for choosing shorter paths
+            //preference of shorter path if reward is basically the same
+            if(best_target_dest_choice[actual_dest].second>=(reward*0.98)&& best_target_dest_choice[actual_dest].second<(reward*1.02)){
+                if(main_dijkstra_alg->path_size(path)<main_dijkstra_alg->path_size(best_target_dest_choice[actual_dest].first)){//New path is shorter and same reward because of rounding errors
+                    best_target_dest_choice[actual_dest].second=reward;
+                    best_target_dest_choice[actual_dest].first=path;
+                }
+            }
+            else{
+                //cout << "\t\t\tpref:";
+                //main_dijkstra_alg->print_prefix(pref);
+                //cout << "\tIter:," << prev_cutset_prefix.size();
+                best_target_dest_choice[actual_dest].second=reward;
+                best_target_dest_choice[actual_dest].first=path;
+                //cout << ",found better choice, path["<<path<<"]:,";
+                //main_dijkstra_alg->print_path(path);
+                //cout << ",reward:," << reward << endl;
+                }
         }
     }
     float avg_reward = 0;
@@ -6278,7 +6393,7 @@ void calculate_next_target_strategy(){
     for (auto choice : best_target_dest_choice){
         chosen_paths.insert(choice.first);
         cout << "Iter:," << current_iter;
-        cout << ",Found better choice, path["<<choice.first<<"]:,";
+        cout << ",2Found better choice, path["<<choice.first<<"]:,";
         main_dijkstra_alg->print_path(choice.first);
         cout << ",reward:," << choice.second << endl;
         avg_reward += choice.second;
@@ -6286,22 +6401,143 @@ void calculate_next_target_strategy(){
     }
     avg_reward = avg_reward / float(Destinations.size());
     target_iterative_rewards.push_back(avg_reward);
+    float avg_iterative_target_reward = 0;
+    for(auto reward: target_iterative_rewards)
+        avg_iterative_target_reward += reward;
+    avg_iterative_target_reward = avg_iterative_target_reward / float(target_iterative_rewards.size());
 
-    cout << "Iter:," << current_iter << ",avg_reward for target choice:," << avg_reward << ",chosen_paths:," << chosen_paths<<endl;
+    cout << "Iter:," << current_iter << ",last_avg_reward for target choice:," << avg_reward <<",avg_iterative_reward:,"<<avg_iterative_target_reward<< ",chosen_paths:," << chosen_paths<<endl;
+}
+void calculate_next_target_strategy2(){
+    cout << "Calling calculate_next_target_strategy,Iter:," << current_iter<<endl;
+    auto paths = main_dijkstra_alg->getAGpaths2();
+    auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
+    double reward = 0;
+    pair<unsigned, float> temp_pair(0, INT_MAX);
+    best_target_dest_choice.assign(Destinations.size(), temp_pair);
+    vector<bool> cutsets_found(prev_cutset_prefix.size(),false);
+    unsigned cutsets_counter = 0;
+    unsigned cutsets_found_counter = 0;
+    //HACK TO TEST OBSERVER REACTION TO PATHSET RATIOS IN EXAMPLE3
+    /*int path1=0;int path2=0;
+    auto n = rand() % 100;
+    if(n<60){
+        path1 = 0;
+        path2 = 1;
+    }
+    else{
+        path1=2;
+        path2=3;
+    }*/
+    //Calculate new target pathset based on the average of previous cutsets
+    //Iterate over each path and calculate target best response ()
+    //auto previousTime = std::chrono::high_resolution_clock::now();
+
+    for(size_t path=0;path<paths->size();path++){
+        //auto currentTime = std::chrono::high_resolution_clock::now();
+        //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - previousTime);
+        //cout << "path:," << path <<",time:"<<duration.count()<<endl;
+        //previousTime = std::chrono::high_resolution_clock::now();
+
+        auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
+        reward = 0;
+        cutsets_found_counter = 0;
+        //Check if current prefix node is in any of the previous cutsets, if not rho is 0.
+        for (auto& pref : (*prefixes_per_path)[path]){
+            if(merged_prev_cut_data.find(pref)!=merged_prev_cut_data.end()){
+                if(merged_prev_cut_data[pref][actual_dest]>0){
+                    cutsets_found_counter += merged_prev_cut_data[pref][actual_dest];
+                    auto weight = modified_q(main_dijkstra_alg->get_cost_to_dest(pref, path));
+                    reward += weight * merged_prev_cut_data[pref][actual_dest];
+                }
+            }
+            else{
+                continue;
+            }
+        }
+        reward = (reward / float(current_iter+1));
+        //if(saturation>0)
+        //    reward = min(reward, (float)1.0);
+        //cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
+        //main_dijkstra_alg->print_path(path);
+        //cout << endl;
+
+        //Now update the best_path for the target for this destination if necessary
+        //if(path==path1||path==path2)
+        if(best_target_dest_choice[actual_dest].second>=(reward*0.98)){//Add equal to allow for choosing shorter paths
+            //preference of shorter path if reward is basically the same
+            if(best_target_dest_choice[actual_dest].second>=(reward*0.98)&& best_target_dest_choice[actual_dest].second<(reward*1.02)){
+                if(main_dijkstra_alg->path_size(path)<main_dijkstra_alg->path_size(best_target_dest_choice[actual_dest].first)){//New path is shorter and same reward because of rounding errors
+                    best_target_dest_choice[actual_dest].second=reward;
+                    best_target_dest_choice[actual_dest].first=path;
+                }
+            }
+            else{
+                //cout << "\t\t\tpref:";
+                //main_dijkstra_alg->print_prefix(pref);
+                //cout << "\tIter:," << prev_cutset_prefix.size();
+                best_target_dest_choice[actual_dest].second=reward;
+                best_target_dest_choice[actual_dest].first=path;
+                //cout << ",found better choice, path["<<path<<"]:,";
+                //main_dijkstra_alg->print_path(path);
+                //cout << ",reward:," << reward << endl;
+                }
+        }
+    }
+    float avg_reward = 0;
+    int counter = 0;
+    set<int> chosen_paths;
+    for (auto choice : best_target_dest_choice){
+        chosen_paths.insert(choice.first);
+        cout << "Iter:," << current_iter;
+        cout << ",2Found better choice, path["<<choice.first<<"]:,";
+        main_dijkstra_alg->print_path(choice.first);
+        cout << ",reward:," << choice.second << endl;
+        avg_reward += choice.second;
+        counter++;
+    }
+    avg_reward = avg_reward / float(Destinations.size());
+    target_iterative_rewards.push_back(avg_reward);
+    float avg_iterative_target_reward = 0;
+    for(auto reward: target_iterative_rewards)
+        avg_iterative_target_reward += reward;
+    avg_iterative_target_reward = avg_iterative_target_reward / float(target_iterative_rewards.size());
+
+    cout << "Iter:," << current_iter << ",last_avg_reward for target choice:," << avg_reward <<",avg_iterative_reward:,"<<avg_iterative_target_reward<< ",chosen_paths:," << chosen_paths<<endl;
 }
 void fictitious_play2(){
-    iterations = 250;
+//    iterations = 1000;
     lambdaDest = 1.0 / float(Destinations.size());
     for (current_iter = 0;current_iter<iterations;current_iter++){
         cout<<"iter:,"<<current_iter<<",calling store_prev_strategies"<<endl;
+        /*for (auto pref : cutset_prefix){
+            cout<<"Santi,Iter:,"<<current_iter<<",pref:,"<<pref<<",dest:,"<<dest_predictor_prefix(pref).first<<endl;
+        }*/
         store_prev_strategies();
-        calculate_next_target_strategy();
+        auto start_time = std::chrono::high_resolution_clock::now(); string method("calculate_next_target_strategy2_");
+        method += to_string(current_iter);
+        calculate_next_target_strategy2();
+        elapsed_time(method, start_time);
+        start_time = std::chrono::high_resolution_clock::now(); method="calculate_next_observer_strategy";
+        method += to_string(current_iter);
         calculate_next_observer_strategy();
+        elapsed_time(method, start_time);
+
     }
 
-// Calculate percentage change for last 20 iterations
-    //calculate_percentage_difference(target_iterative_rewards,160);
-    vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin()+150 , target_iterative_rewards.end());
+    for (auto pref : cutset_prefix){
+        cout << "\t cutset_pref[" << pref<<"]:,";
+        main_dijkstra_alg->print_prefix(pref);
+        //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
+        auto pred_dest = dest_predictor_prefix(pref).first;
+        cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
+    }
+    calculate_mu_rho_reward();
+
+    // Calculate percentage change for last 20 iterations
+    // calculate_percentage_difference(target_iterative_rewards,160);
+    // vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin()+150 , target_iterative_rewards.end());
+    vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin() , target_iterative_rewards.end());
     calculate_statistics(target_iterative_rewards_capped);
 }
 void fictitious_play(){
@@ -6368,6 +6604,7 @@ void fictitious_play(){
         method += to_string(iter);
         calculate_q_recursive_prefix(0);
         elapsed_time(method, start_time);
+        exit(1);
 
         //Now Calculate the new target_strategy
         start_time = std::chrono::high_resolution_clock::now();
@@ -6435,7 +6672,8 @@ pair<float,float> calculate_statistics(const std::vector<float>& values) {
     return make_pair(mean, stddev);
 }
 void store_cutset(set<unsigned>& cutset_prefix){
-    cout << "Calling store_cutset" << flush << endl;
+    total_cutsets++;
+    cout << "Calling store_cutset" << endl;
     //First create 2D cutset_map where [cut][repetitions,d0,d1,...dn]
     map<unsigned, unsigned> cutset_data;
     for(auto& elem : cutset_prefix){
@@ -6461,7 +6699,9 @@ void store_cutset(set<unsigned>& cutset_prefix){
             for(auto& elem : prev_cutset_prefix[i].second)//Iterate over prefixes
             {
                 prev_cut_data[i][elem][cutset_data[elem]]++;
+                merged_prev_cut_data[elem][cutset_data[elem]]++;
                 //cout << "\tprev_cut_data[" << i << "]" << "["<<elem<<"]["<<prev_cut_data[i][elem]<<endl;
+                //cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
             }
             break;
         }
@@ -6474,16 +6714,24 @@ void store_cutset(set<unsigned>& cutset_prefix){
         //Now update destination count for the cutset
         map<unsigned, vector<unsigned>> temp_map;
         prev_cut_data.push_back(temp_map);
-
         vector<unsigned> temp_count(Destinations.size(), 0);
         for(auto& elem : prev_cutset_prefix.back().second){//Iterate over prefixes
             prev_cut_data.back()[elem] = temp_count;
             prev_cut_data.back()[elem][cutset_data[elem]]++;
             //cout << "\tprev_cut_data[" << prev_cutset_prefix.size() - 1 << "]" << "["<<elem<<"]["<<prev_cut_data.back()[elem]<<endl;
+            merged_prev_cut_data[elem] = temp_count;
+            merged_prev_cut_data[elem][cutset_data[elem]]++;
+            //cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
+        }
+    }
+    if(current_iter%100==99){
+        for(size_t i=0;i<prev_cutset_prefix.size();i++){
+            cout << "Freq,iter:," << current_iter << ",";
+            print_cutset_endings(prev_cutset_prefix[i].second);
+            cout << "," << float(prev_cutset_prefix[i].first) / float(current_iter + 1) << endl;
         }
     }
 }
-
 void removeDominatedFromCutset(){
     set<int> nodesToRemove;
     //auto edges = main_dijkstra_alg->getAGPEdges();
@@ -6509,10 +6757,10 @@ void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned 
         exploreDescendants(child, edges, nodesToRemove);
     }
 }
-void print_cutset_endings(){
+void print_cutset_endings(set<unsigned>& cutset){
     set<unsigned> ordered_endings;
     cout << "[";
-    for(auto pref : cutset_prefix)
+    for(auto pref : cutset)
     {
         ordered_endings.insert(main_dijkstra_alg->get_prefix_ending(pref));
     }
@@ -6520,4 +6768,141 @@ void print_cutset_endings(){
         cout<<","<<ending;
     }
     cout << ",]";
+}
+void read_paths_from_file(){
+    ifstream file(input_paths_file);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Unable to open file: " + input_paths_file);
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::vector<unsigned> vec;
+        std::stringstream ss(line);
+        std::string value;
+
+        while (std::getline(ss, value, ',')) {
+            vec.push_back(std::stoi(value));
+        }
+
+        input_paths.push_back(vec);
+    }
+
+    cout << "input paths:;";
+    for(auto path : input_paths){
+        cout << path << ";";
+    }
+    file.close();
+}
+/*void calculate_reward_last_cutset(){
+    //iterate over all prefix paths to destinations
+    //add the pred_destination reward(s) and average out with the failures
+    float cutset_average_reward = 0;
+    for (auto pref : cutset_prefix){
+        for(size_t dest=0;dest<Destinations.size();dest++){
+            auto pred_dest = dest_predictor_prefix(pref).first;
+
+            for (auto path : dest_paths_per_prefix){
+                float positive_reward = main_dijkstra_alg->get_cost_to_dest(pref, path);
+            }
+        }
+    }
+}*/
+void calculate_mu_rho_reward(){
+    //for all possible paths
+    //for prefix k=0 to k=length of path
+    //calculate average chance prefix is in target path
+    //We got it in prob_path from last observer calculation.
+    //calculate average chance observer predicts destination correctly.
+    //Note: prediction chance is 0 if prefix is not yet inside cut.
+    //mulitply chances by q(weight) of the corresponding suffix
+    auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
+    float mu = 0;//mu prob
+    float q = 0;// q(w(gamma(k+)))
+    float cutsets_found_counter = 0;
+    //WE ADAPT EQUATION 4 (phi(mu,rho)) so that we iterate over all existing cutsets per path
+    //Phi as a function of all paths for the aggregated observer and target strategies
+    float phi_mu_rho = 0;
+    float rho = 0;
+    for(size_t path=0;path<paths->size();path++){
+        //mu prob is prob_path
+        mu = prob_path[path];
+        if(mu<0.000001)
+            continue;
+        //now we calculate observer probability it gets destination right
+        auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
+        //iterate over k = 0;
+        for (auto& pref : (*prefixes_per_path)[path]){
+            //cout << "\t\tprefix:,"; main_dijkstra_alg->print_prefix(pref);
+            cutsets_found_counter=0;
+            //create reference to prev_cutset_prefix
+            //pair<unsigned, set<unsigned> > & temp_cutset = prev_cutset_prefix[iter];
+            if(merged_prev_cut_data.find(pref)!=merged_prev_cut_data.end()){
+                if(merged_prev_cut_data[pref][actual_dest]>0){
+                    cutsets_found_counter += merged_prev_cut_data[pref][actual_dest];
+                }
+            }
+            if(cutsets_found_counter==0)
+                continue;
+            rho = cutsets_found_counter;
+            rho=rho/((float)total_cutsets);
+            q = main_dijkstra_alg->get_cost_to_dest(pref, path);
+            cout << "\t\t q before adjust:," << q << endl;
+            //SQUARE WEIGHT HACK
+            //q = q * q;
+            q = modified_q(q);
+            phi_mu_rho += rho * mu * q;
+            cout<<"\t\t q after adjust:,"<<q<<",mu:"<<mu<<",rho:"<<rho<<",phi_mu_rho:"<<phi_mu_rho<<endl;
+            if(debug){
+            cout << "\t\t pref:,"; main_dijkstra_alg->print_prefix(pref);
+            cout<< ",dest:," << actual_dest << ",cutsets_found:," << cutsets_found_counter << ",total_cutsets:," << total_cutsets << endl;
+            
+            cout << "\tpref:,";
+            main_dijkstra_alg->print_prefix(pref);
+            cout<< ",path_reward:," << mu * rho * q << ",mu:," << mu << ",rho:," << rho << ",q:" << q << endl;}
+        }
+        cout << "rho:,"<< rho<<",for path:,";main_dijkstra_alg->print_path(path);cout<<",partial phi_mu_rho:,"<<phi_mu_rho<<endl;
+        //cout << "," << endl;
+        //cout << "reward:,"<< rho*mu<<"for path:,";main_dijkstra_alg->print_path(path);
+        //cout << "," << endl;
+
+    }
+    cout << "phi_mu_rho:," << phi_mu_rho << endl;
+}
+/*float calculate_all_cut_prob()
+{
+    int cutset_repetitions = 0;
+    //First, Is there a cut for this prefix
+    for (size_t i = 0;i<prev_cutset_prefix.size();i++){
+            if(prev_cutset_prefix[i].second.count(pref)>0){
+                cutset_repetitions += prev_cutset_prefix[i].first;
+            }
+    }
+    return float(cutset_repetitions)/
+}*/
+float modified_q(float q){
+    if(q_type==0){//Unmodifier
+        return q;
+    }
+    else if(q_type==1){//Division
+        //cout << "\t\tq:," << q << ",sat:," << saturation << ",modified:,"<<q / saturation << endl;
+        return q / saturation;
+        //return min(q / saturation, float(1.0));
+    }
+    else if(q_type==2){//Min of Division vs 1
+        //cout<<"q_0:,"<<q<<",q/sat:,"<<q/saturation<<"max:,"<<max(q / saturation, float(1.0))<<endl;
+        return min(q / saturation, float(1.0));
+    }
+    else if(q_type==3){//Max of Division vs 1
+        //cout<<"q_0:,"<<q<<",q/sat:,"<<q/saturation<<"max:,"<<max(q / saturation, float(1.0))<<endl;
+        return max(q / saturation, float(1.0));
+    }
+    else if(q_type==4){//Squared and divided
+        return (q*q) / saturation;
+    }
+    else{
+        cerr<<"q_type:"<<q_type<<" is undefined"<<endl;
+        exit(1);
+    }
 }
