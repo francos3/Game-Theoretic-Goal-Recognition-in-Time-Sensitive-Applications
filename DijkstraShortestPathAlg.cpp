@@ -981,7 +981,8 @@ void DijkstraShortestPathAlg::printAGFile()
     myfile << "}" << endl;
     myfile.close();
 }
-void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
+double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
+    double normalization_param = 0;
     int k = 1000;
     auto start_time = std::chrono::high_resolution_clock::now();
     YenTopKShortestPathsAlg yenAlg(*m_pDirectGraph,
@@ -995,7 +996,7 @@ void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, 
     std::ofstream outfile(filename, std::ios_base::app);
     if (!outfile) {
         std::cerr << "Failed to open file: " << filename << '\n';
-        return;
+        //return normalization_param;
     }
     while (yenAlg.has_next() && i < k)
     {
@@ -1006,6 +1007,9 @@ void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, 
             //std::cout<<"paths_created for current destination:"<<d<<",finish, all future paths will have length bigger than:"<<current_path.length()<<",max_length allowed:"<<C<<endl;
             std::cout<<"k:,"<<k<<",i:,"<<i-1<<",paths_created for current destination:,"<<sink->getID()<<",finished, all future paths will have budget bigger than:,"<<current_path.Weight()<<",max_budget allowed:"<<budget<<endl;
             break;
+        }
+        else{
+            normalization_param = current_path.Weight();
         }
         /*if (budget == INT_MAX)
         { //first path is optimal for each destination
@@ -1035,7 +1039,8 @@ void DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, 
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end_time - start_time;
     auto current_time = diff.count();
-    cout << "Yen added,"<<i<<",paths in,"<<current_time<<","<<"budget:,"<<budget<<endl;
+    cout << "Yen added,"<<i<<",paths in,"<<current_time<<","<<"budget:,"<<budget<<",normalization_param:,"<<normalization_param<<endl;
+    return normalization_param;
     //exit(1);
 }
 

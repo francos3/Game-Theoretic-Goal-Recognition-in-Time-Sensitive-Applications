@@ -175,7 +175,7 @@ public:
     int get_perim_size();
     void improve_distances(unordered_set<int> *FO_nodes, vector<Link> *FO_edges,unordered_map<pair<int,int>,float,hash_pair> *best_d);
     void createAG( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool acyclic=true,bool grandparent_check=false);
-    void createAGYen( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool writeToFile=true);
+    double createAGYen( BaseVertex* source, BaseVertex* sink, float Budget=INT_MAX,bool writeToFile=true);
     void printAGFile();
     //void calculateMinPathStrategy();
     void populateAGnodes();

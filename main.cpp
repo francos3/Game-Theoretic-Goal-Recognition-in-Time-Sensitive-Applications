@@ -171,6 +171,7 @@ size_t current_iter=0;
 float saturation=0;
 int q_type = 0;
 int total_cutsets = 0;
+double normalization_param=0;
 
 
 
@@ -1005,7 +1006,7 @@ void create_prefix_graph_from_SaT_file(){
             //std::cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
             //std::cout << "before finding paths:" << ctime(&timenow) << endl;
             std::cout<<"AGP,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<",Destination["<<dest<<"]:"<<Destinations[dest]<<",budget:"<<Budget*main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
-            main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true);
+            normalization_param=max(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true),normalization_param);
             //main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
             //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
@@ -6361,9 +6362,11 @@ void calculate_next_target_strategy(){
         reward = (reward / float(current_iter+1));
         //if(saturation>0)
         //    reward = min(reward, (float)1.0);
-        //cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
-        //main_dijkstra_alg->print_path(path);
-        //cout << endl;
+        /*if(current_iter==140){
+            cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
+            main_dijkstra_alg->print_path(path);
+            cout << endl;
+        }*/
 
         //Now update the best_path for the target for this destination if necessary
         //if(path==path1||path==path2)
@@ -6409,7 +6412,7 @@ void calculate_next_target_strategy(){
     cout << "Iter:," << current_iter << ",last_avg_reward for target choice:," << avg_reward <<",avg_iterative_reward:,"<<avg_iterative_target_reward<< ",chosen_paths:," << chosen_paths<<endl;
 }
 void calculate_next_target_strategy2(){
-    cout << "Calling calculate_next_target_strategy,Iter:," << current_iter<<endl;
+    cout << "Calling calculate_next_target_strategy2,Iter:," << current_iter<<endl;
     auto paths = main_dijkstra_alg->getAGpaths2();
     auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
     double reward = 0;
@@ -6445,6 +6448,11 @@ void calculate_next_target_strategy2(){
         //Check if current prefix node is in any of the previous cutsets, if not rho is 0.
         for (auto& pref : (*prefixes_per_path)[path]){
             if(merged_prev_cut_data.find(pref)!=merged_prev_cut_data.end()){
+                /*if(pref==45){
+                    cout << "\t\tpref:," << pref << ",freq:," << merged_prev_cut_data[pref][actual_dest] << ",actual_dest:," << actual_dest << ",path:,";
+                    main_dijkstra_alg->print_path(path);
+                    cout << endl;
+                }*/
                 if(merged_prev_cut_data[pref][actual_dest]>0){
                     cutsets_found_counter += merged_prev_cut_data[pref][actual_dest];
                     auto weight = modified_q(main_dijkstra_alg->get_cost_to_dest(pref, path));
@@ -6458,9 +6466,11 @@ void calculate_next_target_strategy2(){
         reward = (reward / float(current_iter+1));
         //if(saturation>0)
         //    reward = min(reward, (float)1.0);
-        //cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
-        //main_dijkstra_alg->print_path(path);
-        //cout << endl;
+        if(current_iter==140){
+            cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
+            main_dijkstra_alg->print_path(path);
+            cout << endl;
+        }
 
         //Now update the best_path for the target for this destination if necessary
         //if(path==path1||path==path2)
@@ -6709,7 +6719,7 @@ void store_cutset(set<unsigned>& cutset_prefix){
     //If not found, add as a new cutset
     if(!found){
         prev_cutset_prefix.push_back(make_pair(1, cutset_prefix));
-        cout << "New cutset, prev_cutset_prefix size grows to:," << prev_cutset_prefix.size() << endl;
+        cout << "New cutset:,"<<cutset_prefix<<",prev_cutset_prefix size grows to:," << prev_cutset_prefix.size() << endl;
 
         //Now update destination count for the cutset
         map<unsigned, vector<unsigned>> temp_map;
@@ -6882,8 +6892,8 @@ void calculate_mu_rho_reward(){
     return float(cutset_repetitions)/
 }*/
 float modified_q(float q){
-    if(q_type==0){//Unmodifier
-        return q;
+    if(q_type==0){//Unmodifier,return normalized result
+        return q/normalization_param;
     }
     else if(q_type==1){//Division
         //cout << "\t\tq:," << q << ",sat:," << saturation << ",modified:,"<<q / saturation << endl;
