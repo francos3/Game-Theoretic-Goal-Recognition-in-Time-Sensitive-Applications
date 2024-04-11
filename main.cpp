@@ -1011,6 +1011,7 @@ void create_prefix_graph_from_SaT_file(){
             //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
     }
+    cout << "Final normalization param:," << normalization_param << endl;
     //main_dijkstra_alg->printAGFile();
     main_dijkstra_alg->populateAGPnodes();
     
@@ -6266,7 +6267,7 @@ void calculate_next_observer_strategy(){
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",cutset_reward:,"<<cutset_reward<<",clean_cutset:," <<cutset_prefix<< endl;
     cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(cutset_prefix); cout << endl;
-    //if(debug){
+    if(debug){
         for (auto pref : cutset_prefix){
                 cout << "\t cutset_pref[" << pref<<"]:,";
                 main_dijkstra_alg->print_prefix(pref);
@@ -6274,7 +6275,7 @@ void calculate_next_observer_strategy(){
                 auto pred_dest = dest_predictor_prefix(pref).first;
                 cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
         }
-    //}
+    }
     elapsed_time(method, start_time);
 }
 void calculate_next_target_strategy(){
@@ -6544,11 +6545,17 @@ void fictitious_play2(){
     }
     calculate_mu_rho_reward();
 
-    // Calculate percentage change for last 20 iterations
+    // Calculate percentage change for last 100 iterations
     // calculate_percentage_difference(target_iterative_rewards,160);
     // vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin()+150 , target_iterative_rewards.end());
-    vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin() , target_iterative_rewards.end());
-    calculate_statistics(target_iterative_rewards_capped);
+    if(target_iterative_rewards.size()>100){
+        vector<float> target_iterative_rewards_capped(target_iterative_rewards.end()-100, target_iterative_rewards.end());
+        calculate_statistics(target_iterative_rewards_capped);
+    }
+    else{
+        vector<float> target_iterative_rewards_capped(target_iterative_rewards.begin(), target_iterative_rewards.end());
+        calculate_statistics(target_iterative_rewards_capped);
+    }
 }
 void fictitious_play(){
     //For every iteration recalculate best_target_response based on the opposite player strategy
@@ -6858,21 +6865,21 @@ void calculate_mu_rho_reward(){
             rho = cutsets_found_counter;
             rho=rho/((float)total_cutsets);
             q = main_dijkstra_alg->get_cost_to_dest(pref, path);
-            cout << "\t\t q before adjust:," << q << endl;
+            //cout << "\t\t q before adjust:," << q << endl;
             //SQUARE WEIGHT HACK
             //q = q * q;
             q = modified_q(q);
             phi_mu_rho += rho * mu * q;
-            cout<<"\t\t q after adjust:,"<<q<<",mu:"<<mu<<",rho:"<<rho<<",phi_mu_rho:"<<phi_mu_rho<<endl;
+            //cout<<"\t\t q after adjust:,"<<q<<",mu:"<<mu<<",rho:"<<rho<<",phi_mu_rho:"<<phi_mu_rho<<endl;
             if(debug){
-            cout << "\t\t pref:,"; main_dijkstra_alg->print_prefix(pref);
-            cout<< ",dest:," << actual_dest << ",cutsets_found:," << cutsets_found_counter << ",total_cutsets:," << total_cutsets << endl;
+                cout << "\t\t pref:,"; main_dijkstra_alg->print_prefix(pref);
+                cout<< ",dest:," << actual_dest << ",cutsets_found:," << cutsets_found_counter << ",total_cutsets:," << total_cutsets << endl;
             
-            cout << "\tpref:,";
-            main_dijkstra_alg->print_prefix(pref);
-            cout<< ",path_reward:," << mu * rho * q << ",mu:," << mu << ",rho:," << rho << ",q:" << q << endl;}
+                cout << "\tpref:,";
+                main_dijkstra_alg->print_prefix(pref);
+                cout<< ",path_reward:," << mu * rho * q << ",mu:," << mu << ",rho:," << rho << ",q:" << q << endl;}
         }
-        cout << "rho:,"<< rho<<",for path:,";main_dijkstra_alg->print_path(path);cout<<",partial phi_mu_rho:,"<<phi_mu_rho<<endl;
+        //cout << "rho:,"<< rho<<",for path:,";main_dijkstra_alg->print_path(path);cout<<",partial phi_mu_rho:,"<<phi_mu_rho<<endl;
         //cout << "," << endl;
         //cout << "reward:,"<< rho*mu<<"for path:,";main_dijkstra_alg->print_path(path);
         //cout << "," << endl;
