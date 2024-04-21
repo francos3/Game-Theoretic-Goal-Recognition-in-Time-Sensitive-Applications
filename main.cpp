@@ -42,7 +42,7 @@
 //#include <boost/timer/timer.hpp>
 using namespace std;
 
-bool debug = false;
+bool debug = true;
 float input_lambda = 0;
 int N = 3;
 int C = -1;
@@ -93,9 +93,9 @@ vector<vector<float> > q_given_dest_and_prefix;
 //vector<vector<vector<float> > > prev_q_given_dest_and_prefix;
 vector<float> avg_q_prefix;
 vector<float> phi_prefix;
-set<unsigned> cutset_prefix;
+multiset<unsigned> cutset_prefix;
 //vector< set<unsigned> > prev_cutset_prefix;
-vector< pair<unsigned, set<unsigned> > > prev_cutset_prefix;
+vector< pair<unsigned, multiset<unsigned> > > prev_cutset_prefix;
 //[iters][cut][repetitions,d0,d1,...dn]
 vector<map<unsigned,vector<unsigned> > > prev_reward_per_prefix;    
 map<unsigned,vector<unsigned> > merged_prev_cut_data;
@@ -996,7 +996,7 @@ void create_prefix_graph_from_SaT_file(){
     }
     if(LoadPaths){
         cout << "Loading paths from paths.txt for debugging" << endl;
-        main_dijkstra_alg->load_paths(input_paths);
+        normalization_param=main_dijkstra_alg->load_paths(input_paths);
     }
     else{//remove paths.txt if it exists before appending to it
         const char* filename = "paths.txt";
@@ -6032,21 +6032,23 @@ float calculate_q_recursive_prefix(unsigned node){
     //phi_prefix[node] = sum;
     //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
     if(avg_q_prefix[node]>=0.98*sum){//To account for rounding errors
-        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        //cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node];
-        //auto pred=dest_predictor_prefix(node);
-        //cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
+        if(debug){
+            cout << "\tIter:,"<<current_iter<<",prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+            cout << " belongs to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node];
+            auto pred=dest_predictor_prefix(node);
+            cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
+        }
         cutset_prefix.insert(node);
     }
-    //else{
-        //cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
-        //cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
-        //cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
-        //auto pred=dest_predictor_prefix(node);
-        //cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
-        //phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
-        //cout << "\tphi second term is lower than avg_q_prefix,so maximizing:" << node << endl;
-    //}
+    else if (debug){
+        cout << "\t prefix[,"<<node<<",]:";main_dijkstra_alg->print_prefix(node);
+        cout << " does2 not belong to cutset,sum_prefix:" << sum << ",avg_q_prefix:" << avg_q_prefix[node] << endl;
+        cout<<"phi_prefix[,"<<node<<",]:"<<phi_prefix[node]<<",avg_q_prefix:"<<avg_q_prefix[node]<<endl;
+        auto pred=dest_predictor_prefix(node);
+        cout << ",pred:," << pred.first<<",|,"<<pred.second<<endl;
+        phi_prefix[node] = max(phi_prefix[node], avg_q_prefix[node]);
+        cout << "\tphi second term is lower than avg_q_prefix,so maximizing:" << node << endl;
+    }
     //phi_prefix[node] = max((float) 2.0,max(sum, avg_q_prefix[node]));
     phi_prefix[node] = max(sum, avg_q_prefix[node]);
     return phi_prefix[node];
@@ -6084,9 +6086,9 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
             continue;//destination prob is 0 for this path
         }
         avg_q = lambda_obs_dest_given_prefix[d][node] * q_given_dest_and_prefix[d][node];
-        if(node==0||node==1||node==175){
-            //cout<<"\td:"<<d<<",node:,"<<node<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
-        }
+        //if(node==0){
+        //    cout<<"\td:"<<d<<",node:,"<<node<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
+        //}
         if(avg_q>max_q){
             chosen_dest=d;
             max_q = avg_q;
@@ -6273,7 +6275,7 @@ void calculate_next_observer_strategy(){
                 main_dijkstra_alg->print_prefix(pref);
                 //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
                 auto pred_dest = dest_predictor_prefix(pref).first;
-                cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
+                cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<",q:"<<dest_predictor_prefix(pref).second<<endl;
         }
     }
     elapsed_time(method, start_time);
@@ -6323,7 +6325,7 @@ void calculate_next_target_strategy(){
                     //cutsets_counter++;
                     continue;
                 }
-                pair<unsigned, set<unsigned> > & temp_cutset = prev_cutset_prefix[iter];
+                pair<unsigned, multiset<unsigned> > & temp_cutset = prev_cutset_prefix[iter];
 
                 if(temp_cutset.second.count(pref)>0){
                     //NEED TO MAKE SURE THE dest_predictor_prefix FUNCTION IS CORRECT IN THIS CONTEXT
@@ -6541,7 +6543,7 @@ void fictitious_play2(){
         main_dijkstra_alg->print_prefix(pref);
         //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
         auto pred_dest = dest_predictor_prefix(pref).first;
-        cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<endl;
+        cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<",max_q:"<< dest_predictor_prefix(pref).second<<endl;
     }
     calculate_mu_rho_reward();
 
@@ -6688,7 +6690,7 @@ pair<float,float> calculate_statistics(const std::vector<float>& values) {
     std::cout << "Mean:," << mean << ",stdev:," << stddev << ",CV:, " << stddev/mean << ",entries:"<< n << endl;
     return make_pair(mean, stddev);
 }
-void store_cutset(set<unsigned>& cutset_prefix){
+void store_cutset(multiset<unsigned>& cutset_prefix){
     total_cutsets++;
     cout << "Calling store_cutset" << endl;
     //First create 2D cutset_map where [cut][repetitions,d0,d1,...dn]
@@ -6774,7 +6776,7 @@ void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned 
         exploreDescendants(child, edges, nodesToRemove);
     }
 }
-void print_cutset_endings(set<unsigned>& cutset){
+void print_cutset_endings(multiset<unsigned>& cutset){
     set<unsigned> ordered_endings;
     cout << "[";
     for(auto pref : cutset)

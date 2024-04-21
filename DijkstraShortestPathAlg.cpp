@@ -983,7 +983,7 @@ void DijkstraShortestPathAlg::printAGFile()
 }
 double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
     double normalization_param = 0;
-    int k = 1000;
+    int k = 100;
     auto start_time = std::chrono::high_resolution_clock::now();
     YenTopKShortestPathsAlg yenAlg(*m_pDirectGraph,
                                    (*m_pDirectGraph).get_vertex(source->getID()),
@@ -1365,7 +1365,8 @@ bool DijkstraShortestPathAlg::stuck(BaseVertex *source, BaseVertex *sink)
 //	}
 //}
 
-void DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths){
+double DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths){
+    double normalization_param = 0;
     for(auto path : input_paths){
         AGpath.clear();
         for (auto node : path){
@@ -1376,5 +1377,7 @@ void DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths){
         for (auto node : AGpath)
             cout<<node->getID()<<",";
         cout << endl;
+        normalization_param = max(normalization_param, double(path.size()-1));
     }
+    return normalization_param;
 }

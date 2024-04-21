@@ -180,7 +180,7 @@ public:
     //void calculateMinPathStrategy();
     void populateAGnodes();
     void populateAGPnodes();
-    void load_paths(vector<vector<unsigned>> input_paths);
+    double load_paths(vector<vector<unsigned>> input_paths);
     void print_prefix(unsigned pref){
         for (size_t i = 0; i <= prefixes[pref].second;i++)
             cout << AGpaths2[prefixes[pref].first][i]->getID()<<","<<flush;
