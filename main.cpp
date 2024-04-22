@@ -42,7 +42,7 @@
 //#include <boost/timer/timer.hpp>
 using namespace std;
 
-bool debug = true;
+bool debug = false;
 float input_lambda = 0;
 int N = 3;
 int C = -1;
@@ -93,9 +93,9 @@ vector<vector<float> > q_given_dest_and_prefix;
 //vector<vector<vector<float> > > prev_q_given_dest_and_prefix;
 vector<float> avg_q_prefix;
 vector<float> phi_prefix;
-multiset<unsigned> cutset_prefix;
+set<unsigned> cutset_prefix;
 //vector< set<unsigned> > prev_cutset_prefix;
-vector< pair<unsigned, multiset<unsigned> > > prev_cutset_prefix;
+vector< pair<unsigned, set<unsigned> > > prev_cutset_prefix;
 //[iters][cut][repetitions,d0,d1,...dn]
 vector<map<unsigned,vector<unsigned> > > prev_reward_per_prefix;    
 map<unsigned,vector<unsigned> > merged_prev_cut_data;
@@ -172,8 +172,7 @@ float saturation=0;
 int q_type = 0;
 int total_cutsets = 0;
 double normalization_param=0;
-
-
+string method = "";
 
 struct found_goal {}; // exception for termination
 
@@ -1028,14 +1027,14 @@ void create_prefix_graph_from_SaT_file(){
     }
 
     //Now we calculate recursively phi and Cutset starting at origin
-    auto start_time = std::chrono::high_resolution_clock::now();
-    string method("calculate_q_recursive");
+    //auto start_time = std::chrono::high_resolution_clock::now();
+    //method="calculate_q_recursive";
     calculate_q_recursive_prefix(0);
     //cout << "Iter:,"<<current_iter<<",cutset:," <<cutset_prefix<< endl;
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",clean_cutset:," <<cutset_prefix<< endl;
     cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(cutset_prefix); cout << endl;
-    elapsed_time(method, start_time);
+    //elapsed_time(method, start_time);
     if(stocastic_ficitious_play){
         //Need to calculate initial best target choice first
         best_avg_target_choice();
@@ -2029,15 +2028,15 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     
     if(!skip){
         auto start_time = std::chrono::high_resolution_clock::now();
-        string method("linkPrefixToPaths");
+        method="linkPrefixToPaths";
         paths_per_prefix=main_dijkstra_alg->linkPrefixToPaths();
         elapsed_time(method,start_time);
     }
     
     dest_paths_per_prefix = main_dijkstra_alg->get_dest_paths_per_prefix();
 
-    start_time = std::chrono::high_resolution_clock::now();
-    string method="dest_prob_per_prefix";
+    //start_time = std::chrono::high_resolution_clock::now();
+    //string method="dest_prob_per_prefix";
     counter=0;
     for (size_t i = 0; i < prefixes->size(); i++)
     {
@@ -2054,10 +2053,10 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
         //    cout << "\t\tdestination:," << d << ",dest_prob_per_prefix:"<<dest_prob_per_prefix[d][i]<<endl;
         //}
     }
-    elapsed_time(method, start_time);
+    //elapsed_time(method, start_time);
     
-    start_time = std::chrono::high_resolution_clock::now();
-    method="prefix_prob_path";
+    //start_time = std::chrono::high_resolution_clock::now();
+    //method="prefix_prob_path";
     //Now calculate prob_per_path_given_prefix.
     prefix_prob_path.clear();//Make sure all previous probs are erased
     for (size_t i = 0; i < prefixes->size(); i++){
@@ -2073,7 +2072,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
             }
         }
     }
-    elapsed_time(method, start_time);
+    //elapsed_time(method, start_time);
 
     //Now calculate prob_per_path_given_dest_and_prefix.
     
@@ -2081,8 +2080,8 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     map<pair<unsigned, unsigned>, float> temp;
     prob_per_path_given_dest_and_prefix.assign(Destinations.size(), temp);
 
-    start_time = std::chrono::high_resolution_clock::now();
-    method="prob_per_path_given_dest";
+    //start_time = std::chrono::high_resolution_clock::now();
+    //method="prob_per_path_given_dest";
     for(size_t d=0;d<Destinations.size();d++){
         for(size_t pref=0;pref<prefixes->size();pref++){
             for(auto pth : paths_per_prefix->at(pref)){
@@ -2094,7 +2093,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
             }
         }
     }
-    elapsed_time(method, start_time);
+    //elapsed_time(method, start_time);
     //Now we calculate lambda as a function of prefix and destination
     //For now the lambda(d) distribution is all destinations are equally probable
     //We also calculate q(d,prefix) since we need to use the same loop
@@ -2106,8 +2105,8 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
     vector<float> temp_vec_float; temp_vec_float.assign(prefixes->size(), 0);
     q_given_dest_and_prefix.assign(Destinations.size(), temp_vec_float);
     
-    start_time = std::chrono::high_resolution_clock::now();
-    method="q_given_dest_and_prefix_time";
+    //start_time = std::chrono::high_resolution_clock::now();
+    //method="q_given_dest_and_prefix_time";
     for(size_t dest=0;dest<Destinations.size();dest++){
         for(size_t pref=0;pref<prefixes->size();pref++){
             //cout << "\tcalculating lambda and q per dest and prefix(" <<dest<<","<<pref<<")"<< flush << endl;
@@ -2139,7 +2138,7 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
             //}
         }
     }
-    elapsed_time(method, start_time);
+    //elapsed_time(method, start_time);
     //Now we can calculate avg_q per prefix as the max q for all dests * lambda(d,prefix).
     avg_q_prefix.assign(prefixes->size(), 0.0);
     phi_prefix.assign(prefixes->size(), 0.0);//Here is a good point to resize it as well.
@@ -6087,9 +6086,9 @@ pair<unsigned, float> dest_predictor_prefix(unsigned node){
         }
         avg_q = lambda_obs_dest_given_prefix[d][node] * q_given_dest_and_prefix[d][node];
         //if(node==0){
-        //    cout<<"\td:"<<d<<",node:,"<<node<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
+        //cout<<"\n\t\td:"<<d<<",node:,"<<node<<",lambda:"<<lambda_obs_dest_given_prefix[d][node]<<",q:"<<q_given_dest_and_prefix[d][node]<<",curr_q:"<<avg_q<<endl;
         //}
-        if(avg_q>max_q){
+        if(avg_q>=max_q){
             chosen_dest=d;
             max_q = avg_q;
         }
@@ -6264,7 +6263,7 @@ void calculate_next_observer_strategy(){
     calculate_min_path_strategy_prefixes(true);
     //Now we calculate recursively phi and Cutset starting at origin
     auto start_time = std::chrono::high_resolution_clock::now();
-    string method("calculate_q_recursive");
+    //method="calculate_q_recursive";
     float cutset_reward=calculate_q_recursive_prefix(0);
     removeDominatedFromCutset();
     cout << "Iter:,"<<current_iter<<",cutset_reward:,"<<cutset_reward<<",clean_cutset:," <<cutset_prefix<< endl;
@@ -6274,11 +6273,14 @@ void calculate_next_observer_strategy(){
                 cout << "\t cutset_pref[" << pref<<"]:,";
                 main_dijkstra_alg->print_prefix(pref);
                 //auto pred_dest = prev_dest_predictor_prefix(pref,prev_cutset_prefix.size()-1).first;
-                auto pred_dest = dest_predictor_prefix(pref).first;
-                cout <<",pred_dest:,"<<pred_dest<<",:,"<<DestinationsOrder1[pred_dest]<<",q:"<<dest_predictor_prefix(pref).second<<endl;
+                auto pred_dest = dest_predictor_prefix(pref);
+                //cout <<",pred_dest:,"<<pred_dest.first<<",:,"<<DestinationsOrder1[pred_dest.first]<<",q:"<<pred_dest.second<<endl;
+                cout << ",pred_dest:," << pred_dest.first << ",:," << DestinationsOrder1[pred_dest.first] << endl;
+                //cout << endl;
         }
+        cout<<"finished_cutsets"<<endl;//For cutsets collecting scripts
     }
-    elapsed_time(method, start_time);
+   //elapsed_time(method, start_time);
 }
 void calculate_next_target_strategy(){
     cout << "Calling calculate_next_target_strategy,Iter:," << current_iter<<endl;
@@ -6325,7 +6327,7 @@ void calculate_next_target_strategy(){
                     //cutsets_counter++;
                     continue;
                 }
-                pair<unsigned, multiset<unsigned> > & temp_cutset = prev_cutset_prefix[iter];
+                pair<unsigned, set<unsigned> > & temp_cutset = prev_cutset_prefix[iter];
 
                 if(temp_cutset.second.count(pref)>0){
                     //NEED TO MAKE SURE THE dest_predictor_prefix FUNCTION IS CORRECT IN THIS CONTEXT
@@ -6451,10 +6453,10 @@ void calculate_next_target_strategy2(){
         //Check if current prefix node is in any of the previous cutsets, if not rho is 0.
         for (auto& pref : (*prefixes_per_path)[path]){
             if(merged_prev_cut_data.find(pref)!=merged_prev_cut_data.end()){
-                /*if(pref==45){
+                /*if(path==21||path==25){
                     cout << "\t\tpref:," << pref << ",freq:," << merged_prev_cut_data[pref][actual_dest] << ",actual_dest:," << actual_dest << ",path:,";
                     main_dijkstra_alg->print_path(path);
-                    cout << endl;
+                    cout << "weight:,"<< modified_q(main_dijkstra_alg->get_cost_to_dest(pref, path))<<endl;
                 }*/
                 if(merged_prev_cut_data[pref][actual_dest]>0){
                     cutsets_found_counter += merged_prev_cut_data[pref][actual_dest];
@@ -6527,7 +6529,7 @@ void fictitious_play2(){
             cout<<"Santi,Iter:,"<<current_iter<<",pref:,"<<pref<<",dest:,"<<dest_predictor_prefix(pref).first<<endl;
         }*/
         store_prev_strategies();
-        auto start_time = std::chrono::high_resolution_clock::now(); string method("calculate_next_target_strategy2_");
+        auto start_time = std::chrono::high_resolution_clock::now();method="calculate_next_target_strategy2_";
         method += to_string(current_iter);
         calculate_next_target_strategy2();
         elapsed_time(method, start_time);
@@ -6619,7 +6621,7 @@ void fictitious_play(){
         cout << "finished with calculate_min_path_strategy_prefix,iter:," << iter << endl;
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        string method("calculate_q_recursive");
+        method="calculate_q_recursive";
         method += to_string(iter);
         calculate_q_recursive_prefix(0);
         elapsed_time(method, start_time);
@@ -6690,12 +6692,13 @@ pair<float,float> calculate_statistics(const std::vector<float>& values) {
     std::cout << "Mean:," << mean << ",stdev:," << stddev << ",CV:, " << stddev/mean << ",entries:"<< n << endl;
     return make_pair(mean, stddev);
 }
-void store_cutset(multiset<unsigned>& cutset_prefix){
+void store_cutset(set<unsigned>& cutset_prefix){
     total_cutsets++;
     cout << "Calling store_cutset" << endl;
     //First create 2D cutset_map where [cut][repetitions,d0,d1,...dn]
     map<unsigned, unsigned> cutset_data;
     for(auto& elem : cutset_prefix){
+        //cout <<"Iter:,"<<current_iter<<",store_cutset,elem:," << elem << endl;
         auto data=dest_predictor_prefix(elem);
         cutset_data[elem] = data.first;
     }
@@ -6713,14 +6716,14 @@ void store_cutset(multiset<unsigned>& cutset_prefix){
             //update D vector where 1st element is number of repetitions of cutset and the rest are how many times each d is chosen per cut. 
             prev_cutset_prefix[i].first++;
             found = true;
-            cout << "Found cutset, prev_cutset_prefix remains to:," << prev_cutset_prefix.size() <<", repetitions:,"<<prev_cutset_prefix[i].first<<flush<<endl;
+            cout << "Found cutset, prev_cutset_prefix remains to:," << prev_cutset_prefix.size() <<", repetitions:,"<<prev_cutset_prefix[i].first<<endl;
             //Now update destination count for the cutset
             for(auto& elem : prev_cutset_prefix[i].second)//Iterate over prefixes
             {
-                prev_cut_data[i][elem][cutset_data[elem]]++;
+                //prev_cut_data[i][elem][cutset_data[elem]]++;
                 merged_prev_cut_data[elem][cutset_data[elem]]++;
                 //cout << "\tprev_cut_data[" << i << "]" << "["<<elem<<"]["<<prev_cut_data[i][elem]<<endl;
-                //cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
+                cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
             }
             break;
         }
@@ -6738,16 +6741,26 @@ void store_cutset(multiset<unsigned>& cutset_prefix){
             prev_cut_data.back()[elem] = temp_count;
             prev_cut_data.back()[elem][cutset_data[elem]]++;
             //cout << "\tprev_cut_data[" << prev_cutset_prefix.size() - 1 << "]" << "["<<elem<<"]["<<prev_cut_data.back()[elem]<<endl;
-            merged_prev_cut_data[elem] = temp_count;
+            if(merged_prev_cut_data.find(elem)==merged_prev_cut_data.end()){
+                merged_prev_cut_data[elem] = temp_count;
+            }
             merged_prev_cut_data[elem][cutset_data[elem]]++;
             //cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
         }
     }
-    if(current_iter%100==99){
+    if(current_iter%1000==999){
+        for(auto pref: merged_prev_cut_data){
+            cout << "\t pref[," << pref.first << ",],reps:"<<pref.second<<",";main_dijkstra_alg->print_prefix(pref.first);
+            cout << endl;
+        }
         for(size_t i=0;i<prev_cutset_prefix.size();i++){
             cout << "Freq,iter:," << current_iter << ",";
-            print_cutset_endings(prev_cutset_prefix[i].second);
+            print_cutset_ids(prev_cutset_prefix[i].second);
             cout << "," << float(prev_cutset_prefix[i].first) / float(current_iter + 1) << endl;
+            //for(auto pref : prev_cutset_prefix[i].second){
+            //    cout << "\t pref[," << pref << ",],reps:"<<merged_prev_cut_data[pref]<<",";main_dijkstra_alg->print_prefix(pref);
+            //    cout << endl;
+            //}
         }
     }
 }
@@ -6776,8 +6789,8 @@ void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned 
         exploreDescendants(child, edges, nodesToRemove);
     }
 }
-void print_cutset_endings(multiset<unsigned>& cutset){
-    set<unsigned> ordered_endings;
+void print_cutset_endings(set<unsigned>& cutset){
+    multiset<unsigned> ordered_endings;
     cout << "[";
     for(auto pref : cutset)
     {
@@ -6785,6 +6798,18 @@ void print_cutset_endings(multiset<unsigned>& cutset){
     }
     for(auto ending : ordered_endings){
         cout<<","<<ending;
+    }
+    cout << ",]";
+}
+void print_cutset_ids(set<unsigned>& cutset){
+    set<unsigned> ordered_prefixes;
+    cout << "[";
+    for(auto pref : cutset)
+    {
+        ordered_prefixes.insert(pref);
+    }
+    for(auto pref : ordered_prefixes){
+        cout<<","<<pref;
     }
     cout << ",]";
 }

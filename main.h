@@ -52,6 +52,21 @@ std::ostream& operator<<(std::ostream& os, const std::set<T>& v)
     return os; 
 } 
 
+template <typename T> 
+std::ostream& operator<<(std::ostream& os, const std::multiset<T>& v) 
+{ 
+    os << "["; 
+    for (auto it : v) { 
+        os << it; 
+        if (it != *v.rbegin()) 
+            os << ","; 
+    } 
+    os << "]"; 
+    //os << "]\n"; 
+    return os; 
+} 
+
+
 struct hash_pair { 
     template <class T1, class T2> 
     size_t operator()(const std::pair<T1, T2>& p) const
@@ -98,7 +113,8 @@ void store_cutset(std::set<unsigned>& cutset_prefix);
 void removeDominatedFromCutset();
 void exploreDescendants(int node, std::shared_ptr<std::vector<std::set<unsigned int>>> edges,
                         std::set<int> & nodesToRemove);
-void print_cutset_endings(std::set<unsigned>& cut);
+void print_cutset_endings(std::set<unsigned>& cutset);
+void print_cutset_ids(std::set<unsigned>& cutset);
 void read_paths_from_file();
 void calculate_mu_rho_reward();
 void calculate_cut_prob(unsigned path,unsigned pref);

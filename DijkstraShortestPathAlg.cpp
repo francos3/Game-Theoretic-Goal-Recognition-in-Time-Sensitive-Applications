@@ -1374,10 +1374,18 @@ double DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths)
         }
         AGpaths.insert(AGpath);
         cout << "Agpath:";
-        for (auto node : AGpath)
+        int counter = 0;
+        double path_weight = 0;
+        auto parent_node = AGpath[0];
+        for (auto node : AGpath){
             cout<<node->getID()<<",";
+            if(counter++>0){
+                path_weight += m_pDirectGraph->get_edge_weight(parent_node, node);
+            }
+            parent_node = node;
+        }
         cout << endl;
-        normalization_param = max(normalization_param, double(path.size()-1));
+        normalization_param = max(normalization_param, path_weight);
     }
     return normalization_param;
 }
