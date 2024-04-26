@@ -171,7 +171,7 @@ size_t current_iter=0;
 float saturation=0;
 int q_type = 0;
 int total_cutsets = 0;
-double normalization_param=0;
+float normalization_param=0;
 string method = "";
 
 struct found_goal {}; // exception for termination
@@ -1005,12 +1005,15 @@ void create_prefix_graph_from_SaT_file(){
             //std::cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
             //std::cout << "before finding paths:" << ctime(&timenow) << endl;
             std::cout<<"AGP,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<",Destination["<<dest<<"]:"<<Destinations[dest]<<",budget:"<<Budget*main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
-            normalization_param=max(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true),normalization_param);
+            normalization_param=max(float(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true)),normalization_param);
             //main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
             //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
     }
     cout << "Final normalization param:," << normalization_param << endl;
+    if(q_type==3){
+        normalization_param=normalization_param/float(saturation);
+    }
     //main_dijkstra_alg->printAGFile();
     main_dijkstra_alg->populateAGPnodes();
     
@@ -2181,7 +2184,9 @@ void calculate_min_path_strategy_prefixes(bool skip=false){
         parent++;
 
     }
+    if(current_iter%1000==999){
     elapsed_time(method, start_time);
+}
 }
 void calculate_min_path_strategy_AG()
 {
@@ -6222,7 +6227,7 @@ void store_prev_strategies(){
     cutset_prefix.clear();
     //Now store previous Q set of paths from the target
     prev_best_target_dest_choice.push_back(best_target_dest_choice);
-    cout<<"size of best_target_dest_choice:"<<best_target_dest_choice.size()<<endl;
+    //cout<<"size of best_target_dest_choice:"<<best_target_dest_choice.size()<<endl;
 
 }
 void calculate_next_observer_strategy(){
@@ -6259,15 +6264,17 @@ void calculate_next_observer_strategy(){
         prob_path[p.first]=weight*lambdaDest;
         //cout<<",prob_path["<<p.first<<"],"<< prob_path[p.first]<<endl;
     }
-    elapsed_time("\t\tSetup_observer_aggregated_target_paths", previousTime);
+    //elapsed_time("\t\tSetup_observer_aggregated_target_paths", previousTime);
     calculate_min_path_strategy_prefixes(true);
     //Now we calculate recursively phi and Cutset starting at origin
     auto start_time = std::chrono::high_resolution_clock::now();
     //method="calculate_q_recursive";
     float cutset_reward=calculate_q_recursive_prefix(0);
     removeDominatedFromCutset();
+    if(current_iter%1000==999){
     cout << "Iter:,"<<current_iter<<",cutset_reward:,"<<cutset_reward<<",clean_cutset:," <<cutset_prefix<< endl;
     cout << "Iter:," << current_iter<<",clean_cutset_endings:,"; print_cutset_endings(cutset_prefix); cout << endl;
+    }
     if(debug){
         for (auto pref : cutset_prefix){
                 cout << "\t cutset_pref[" << pref<<"]:,";
@@ -6417,7 +6424,7 @@ void calculate_next_target_strategy(){
     cout << "Iter:," << current_iter << ",last_avg_reward for target choice:," << avg_reward <<",avg_iterative_reward:,"<<avg_iterative_target_reward<< ",chosen_paths:," << chosen_paths<<endl;
 }
 void calculate_next_target_strategy2(){
-    cout << "Calling calculate_next_target_strategy2,Iter:," << current_iter<<endl;
+    //cout << "Calling calculate_next_target_strategy2,Iter:," << current_iter<<endl;
     auto paths = main_dijkstra_alg->getAGpaths2();
     auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
     double reward = 0;
@@ -6471,11 +6478,11 @@ void calculate_next_target_strategy2(){
         reward = (reward / float(current_iter+1));
         //if(saturation>0)
         //    reward = min(reward, (float)1.0);
-        if(current_iter==140){
+        /*if(current_iter==140){
             cout << "\t\titer:," << current_iter << ",avg_reward:," << reward << ",for path:[" << path<<"]:,";
             main_dijkstra_alg->print_path(path);
             cout << endl;
-        }
+        }*/
 
         //Now update the best_path for the target for this destination if necessary
         //if(path==path1||path==path2)
@@ -6504,8 +6511,10 @@ void calculate_next_target_strategy2(){
     set<int> chosen_paths;
     for (auto choice : best_target_dest_choice){
         chosen_paths.insert(choice.first);
+        if(current_iter%1000==999){
         cout << "Iter:," << current_iter;
         cout << ",2Found better choice, path["<<choice.first<<"]:,";
+        }
         main_dijkstra_alg->print_path(choice.first);
         cout << ",reward:," << choice.second << endl;
         avg_reward += choice.second;
@@ -6716,14 +6725,17 @@ void store_cutset(set<unsigned>& cutset_prefix){
             //update D vector where 1st element is number of repetitions of cutset and the rest are how many times each d is chosen per cut. 
             prev_cutset_prefix[i].first++;
             found = true;
-            cout << "Found cutset, prev_cutset_prefix remains to:," << prev_cutset_prefix.size() <<", repetitions:,"<<prev_cutset_prefix[i].first<<endl;
+            //cout << "Found cutset, prev_cutset_prefix remains to:," << prev_cutset_prefix.size() <<", repetitions:,"<<prev_cutset_prefix[i].first<<endl;
+            if(current_iter%1000==999){
+                cout << "Found cutset, prev_cutset_prefix remains to:," << prev_cutset_prefix.size() <<", repetitions:,"<<prev_cutset_prefix[i].first<<endl;
+            }
             //Now update destination count for the cutset
             for(auto& elem : prev_cutset_prefix[i].second)//Iterate over prefixes
             {
                 //prev_cut_data[i][elem][cutset_data[elem]]++;
                 merged_prev_cut_data[elem][cutset_data[elem]]++;
                 //cout << "\tprev_cut_data[" << i << "]" << "["<<elem<<"]["<<prev_cut_data[i][elem]<<endl;
-                cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
+                //cout << "\tmerged_prev_cut_data["<<elem<<"]:"<<merged_prev_cut_data[elem]<<endl;
             }
             break;
         }
@@ -6731,7 +6743,9 @@ void store_cutset(set<unsigned>& cutset_prefix){
     //If not found, add as a new cutset
     if(!found){
         prev_cutset_prefix.push_back(make_pair(1, cutset_prefix));
+        if(current_iter%1000==999){
         cout << "New cutset:,"<<cutset_prefix<<",prev_cutset_prefix size grows to:," << prev_cutset_prefix.size() << endl;
+        }
 
         //Now update destination count for the cutset
         map<unsigned, vector<unsigned>> temp_map;
@@ -6938,9 +6952,9 @@ float modified_q(float q){
         //cout<<"q_0:,"<<q<<",q/sat:,"<<q/saturation<<"max:,"<<max(q / saturation, float(1.0))<<endl;
         return min(q / saturation, float(1.0));
     }
-    else if(q_type==3){//Max of Division vs 1
-        //cout<<"q_0:,"<<q<<",q/sat:,"<<q/saturation<<"max:,"<<max(q / saturation, float(1.0))<<endl;
-        return max(q / saturation, float(1.0));
+    else if(q_type==3){//Min of Proportional Division vs 1
+        //Note that normalization_param is divided by sat factor if q_type==3, we do it outside the function because it only needs to be done once.
+        return min(q /normalization_param, float(1.0));
     }
     else if(q_type==4){//Squared and divided
         return (q*q) / saturation;

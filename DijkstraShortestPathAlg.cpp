@@ -983,7 +983,7 @@ void DijkstraShortestPathAlg::printAGFile()
 }
 double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
     double normalization_param = 0;
-    int k = 100;
+    int k = 1000;
     auto start_time = std::chrono::high_resolution_clock::now();
     YenTopKShortestPathsAlg yenAlg(*m_pDirectGraph,
                                    (*m_pDirectGraph).get_vertex(source->getID()),
