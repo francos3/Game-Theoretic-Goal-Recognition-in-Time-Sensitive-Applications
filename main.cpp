@@ -43,6 +43,7 @@
 using namespace std;
 
 bool debug = false;
+bool fixed_observer_strategy = false;
 float input_lambda = 0;
 int N = 3;
 int C = -1;
@@ -169,10 +170,12 @@ vector<float> target_iterative_rewards;
 size_t iterations=10000;
 size_t current_iter=0;
 float saturation=0;
+float fixed_rad=0;
 int q_type = 0;
 int total_cutsets = 0;
 float normalization_param=0;
 string method = "";
+map<int,set<int> > boundary_nodes;
 
 struct found_goal {}; // exception for termination
 
@@ -1005,10 +1008,14 @@ void create_prefix_graph_from_SaT_file(){
             //std::cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
             //std::cout << "before finding paths:" << ctime(&timenow) << endl;
             std::cout<<"AGP,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<",Destination["<<dest<<"]:"<<Destinations[dest]<<",budget:"<<Budget*main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
-            normalization_param=max(float(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),true)),normalization_param);
+            cout<<"memory after creating paths for dest:,"<<dest<<",:,";
+            printMemoryUsage();
+            normalization_param=max(float(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),false)),normalization_param);
             //main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
             //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
+        //cout << "Exiting Creating Yen Paths" << endl;
+        //exit(1);
     }
     cout << "Final normalization param:," << normalization_param << endl;
     if(q_type==3){
@@ -4470,6 +4477,13 @@ int main(int argc, char *argv[])
             saturation = stof(temp);
             std::cout << "sat:," << saturation << endl;
         }
+        if (action.find("fix_rad=") != string::npos)
+        {
+            string temp = action.substr(8, action.length());
+            //cout << "temp:" << temp << flush << endl;
+            fixed_rad = stof(temp);
+            std::cout << "fixed_rad:," << fixed_rad << endl;
+        }
         if (action.find("type=") != string::npos)
         {
             string temp = action.substr(5, action.length());
@@ -4568,6 +4582,11 @@ int main(int argc, char *argv[])
             string temp = action.substr(2, action.length());
             iterations = stoi(temp);
             std::cout << "iterations:" << iterations << endl;
+        }
+        if (action == "fixed_strategy")
+        {
+            fixed_observer_strategy = true;
+            std::cout<<"fixed_observer_strategy="<<fixed_observer_strategy<<endl;
         }
     }
     //Check input file exists
@@ -6512,11 +6531,11 @@ void calculate_next_target_strategy2(){
     for (auto choice : best_target_dest_choice){
         chosen_paths.insert(choice.first);
         if(current_iter%1000==999){
-        cout << "Iter:," << current_iter;
-        cout << ",2Found better choice, path["<<choice.first<<"]:,";
+            cout << "Iter:," << current_iter;
+            cout << ",2Found better choice, path["<<choice.first<<"]:,";
+            main_dijkstra_alg->print_path(choice.first);
+            cout << ",reward:," << choice.second << endl;
         }
-        main_dijkstra_alg->print_path(choice.first);
-        cout << ",reward:," << choice.second << endl;
         avg_reward += choice.second;
         counter++;
     }
@@ -6532,7 +6551,14 @@ void calculate_next_target_strategy2(){
 void fictitious_play2(){
 //    iterations = 1000;
     lambdaDest = 1.0 / float(Destinations.size());
-    for (current_iter = 0;current_iter<iterations;current_iter++){
+    if(fixed_observer_strategy){
+        auto start_time = std::chrono::high_resolution_clock::now();method="calculate_fixed_policy_perim";
+        method += to_string(current_iter);
+        calculate_fixed_policy_perim();
+        elapsed_time(method, start_time);
+    }
+    for (current_iter = 0; current_iter < iterations; current_iter++)
+    {
         cout<<"iter:,"<<current_iter<<",calling store_prev_strategies"<<endl;
         /*for (auto pref : cutset_prefix){
             cout<<"Santi,Iter:,"<<current_iter<<",pref:,"<<pref<<",dest:,"<<dest_predictor_prefix(pref).first<<endl;
@@ -6540,13 +6566,19 @@ void fictitious_play2(){
         store_prev_strategies();
         auto start_time = std::chrono::high_resolution_clock::now();method="calculate_next_target_strategy2_";
         method += to_string(current_iter);
-        calculate_next_target_strategy2();
-        elapsed_time(method, start_time);
+        if(!fixed_observer_strategy){
+            calculate_next_target_strategy2();
+            elapsed_time(method, start_time);
+        }
+        else{
+            calculate_next_target_strategy_FixedObserverPolicy();
+            elapsed_time(method, start_time);
+            exit(1);//Nothing else to calculate
+        }
         start_time = std::chrono::high_resolution_clock::now(); method="calculate_next_observer_strategy";
         method += to_string(current_iter);
         calculate_next_observer_strategy();
         elapsed_time(method, start_time);
-
     }
 
     for (auto pref : cutset_prefix){
@@ -6939,6 +6971,169 @@ void calculate_mu_rho_reward(){
     }
     return float(cutset_repetitions)/
 }*/
+
+void calculate_fixed_policy_perim(){
+    map<int, int> distances;
+    auto paths = main_dijkstra_alg->getAGpaths2();
+    float cost=0;
+    //get radius adjustment per destination
+    vector<int> rad;
+    for (size_t dest = 0; dest < Destinations.size(); dest++){
+        //Doing max(100.0,...)_so that at least we have one edge (all of our edges worth 100 at the moment)
+        rad.push_back(max(100.0,main_dijkstra_alg->get_cost(Destinations[dest])/fixed_rad));
+    }
+    //First create a boundary based on the radius
+    for(size_t path=0;path<paths->size();path++){
+        //cout << "path:,";main_dijkstra_alg->print_path(path);cout<<endl;
+        auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
+        cost = 0;
+        //for (auto it = (*paths)[path].rbegin()+1; it != (*paths)[path].rend(); ++it)
+        for(size_t i=main_dijkstra_alg->get_path_size(path)-2;i>0;i--){
+            //cout << "\t\t working on node_element:," << i << endl;
+            cost += main_dijkstra_alg->get_path_edge_cost(path,i);
+            if(cost>rad[actual_dest]){
+                //cout << "Exiting, radius:," << radius <<",cost:,"<<cost<< endl;
+                break;
+            }
+            auto node = (*paths)[path][i]->getID();
+            if (distances.find(node) != distances.end()) {
+                if(distances[node]<cost){//skip, node is already closer to alternative destination
+                    //cout << "\t skipping boundary node:," << node << ",cost:," << cost << ",for dest:," << actual_dest << ",prev best result:," << distances[node] << endl;
+                    continue;
+                }
+                else if(distances[node]==cost){
+                    if(boundary_nodes[node].find(actual_dest)==boundary_nodes[node].end()){
+                        boundary_nodes[node].insert(actual_dest);
+                        //cout << "\tboundary_node,equidistan to dest:," << actual_dest << ",to node:," << node <<",new_list:,"<<boundary_nodes[node]<<",cost:,"<<cost<<endl;
+                        continue;
+                    }
+                    else{//No point adding the same destionation at the same distance again
+                        continue;
+                    }
+                }
+                else{//found closer destination to node, so eliminate previous equidistant list
+                    boundary_nodes[node].clear();//using clear because set will be populated with new node
+                    //cout << "\tboundary_node,elminated equidistant list to node:," << node << ",cost:," << cost << ",stored_distance:," << distances[node] << endl;
+                }
+            }
+            boundary_nodes[node].insert(actual_dest);
+            distances[node] = cost;
+            if(debug){
+                cout << "\t boundary_node,added node:," << node << ",cost:," << cost <<",for dest:,"<<actual_dest<<endl;
+            }
+        }
+    }
+    //print boundary
+    for(auto elem : boundary_nodes){
+        cout << "boundary_node,node:," << elem.first << ",dests:," << elem.second << endl;
+    }
+    //Second, decide which shared nodes belong to which destination
+    // Set to store the intersection
+    //std::set<int> intersection;
+
+    // Calculate intersection of set1 and set2
+    //std::set_intersection(set1.begin(), set1.end(),
+    //                      set2.begin(), set2.end(),
+    //                      std::inserter(intersection, intersection.begin()));
+
+    // Display the intersection
+    //std::cout << "Intersection of set1 and set2: ";
+    //for (int elem : intersection) {
+    //    std::cout << elem << " ";
+    //}
+    //std::cout << std::endl;
+}
+void calculate_next_target_strategy_FixedObserverPolicy(){
+    //cout << "Calling calculate_next_target_strategy2,Iter:," << current_iter<<endl;
+    auto paths = main_dijkstra_alg->getAGpaths2();
+    auto prefixes_per_path = main_dijkstra_alg->getPathsToPrefix();
+    double reward = 0;
+    pair<unsigned, float> temp_pair(0, INT_MAX);
+    best_target_dest_choice.assign(Destinations.size(), temp_pair);
+    vector<bool> cutsets_found(prev_cutset_prefix.size(),false);
+    unsigned cutsets_counter = 0;
+    unsigned cutsets_found_counter = 0;
+    //Calculate new target pathset based on the average of previous cutsets
+    //Iterate over each path and calculate target best response ()
+    //auto previousTime = std::chrono::high_resolution_clock::now();
+
+    for(size_t path=0;path<paths->size();path++){
+        //auto currentTime = std::chrono::high_resolution_clock::now();
+        //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - previousTime);
+        //cout << "path:," << path <<",time:"<<duration.count()<<endl;
+        //previousTime = std::chrono::high_resolution_clock::now();
+        auto actual_dest = DestinationsOrder2[(*paths)[path].back()->getID()];
+        int node = 0;
+        for(size_t i=0;i<(*paths)[path].size();i++){
+            reward = 0;
+            node=(*paths)[path][i]->getID();
+            auto it = boundary_nodes.find(node);
+            if (it != boundary_nodes.end()){
+                //cout << "\t\tpath:," << path << ",i:," << i << ",node:," << node <<",is in boundary list"<<endl;
+                for (auto d: boundary_nodes[node]){
+                    if(d==actual_dest){//this boundary node prediction is correct
+                        reward += modified_q(main_dijkstra_alg->get_subpath_cost(path,node));
+                    }
+                    //normalize reward by number of predicted destinations
+                    reward = reward / float(boundary_nodes[node].size());
+                }
+                //cout << "average reward for node:," << node << "with pred_dest:" << boundary_nodes[node] << "and actual dest:," << actual_dest << ",is:," << reward << endl;
+                //Finished with path, reacting to first perimeter interseciton
+                break;
+            }
+            else{
+                continue;
+            }
+        }
+        //Now  update the best_path for the target for this destination if necessary
+        if(best_target_dest_choice[actual_dest].second>=(reward*0.98)){//Add equal to allow for choosing shorter paths
+            //preference of shorter path if reward is basically the same
+            if(best_target_dest_choice[actual_dest].second>=(reward*0.98)&& best_target_dest_choice[actual_dest].second<(reward*1.02)){
+                if(main_dijkstra_alg->path_size(path)<main_dijkstra_alg->path_size(best_target_dest_choice[actual_dest].first)){//New path is shorter and same reward because of rounding errors
+                    best_target_dest_choice[actual_dest].second=reward;
+                    best_target_dest_choice[actual_dest].first=path;
+                }
+            }
+            else if(reward!=best_target_dest_choice[actual_dest].second){
+                //cout << "\t\t\tpref:";
+                //main_dijkstra_alg->print_prefix(pref);
+                cout << "node:," << node << ",prev_reward:," << best_target_dest_choice[actual_dest].second;
+                cout << ",Iter:," << prev_cutset_prefix.size();
+                best_target_dest_choice[actual_dest].second=reward;
+                best_target_dest_choice[actual_dest].first=path;
+                cout << ",found3 better choice, path["<<path<<"]:,";
+                main_dijkstra_alg->print_path(path);
+                cout << ",reward:," << reward << endl;
+                }
+        }
+    }
+
+    //Now calculate average reward
+    float avg_reward = 0;
+    int counter = 0;
+    set<int> chosen_paths;
+    for (auto choice : best_target_dest_choice){
+        chosen_paths.insert(choice.first);
+        //if(current_iter%1000==999){
+            cout << "Iter:," << current_iter;
+            cout << ",3Found better choice, path["<<choice.first<<"]:,";
+            main_dijkstra_alg->print_path(choice.first);
+            cout << ",reward:," << choice.second << endl;
+        //}
+        avg_reward += choice.second;
+        counter++;
+    }
+    avg_reward = avg_reward / float(Destinations.size());
+    target_iterative_rewards.push_back(avg_reward);
+    float avg_iterative_target_reward = 0;
+    for(auto reward: target_iterative_rewards)
+        avg_iterative_target_reward += reward;
+    avg_iterative_target_reward = avg_iterative_target_reward / float(target_iterative_rewards.size());
+
+    cout << "Iter:," << current_iter << ",last_avg_reward for target choice:," << avg_reward <<",avg_iterative_reward:,"<<avg_iterative_target_reward<< ",chosen_paths:," << chosen_paths<<endl;
+    exit(0);
+}
+
 float modified_q(float q){
     if(q_type==0){//Unmodifier,return normalized result
         return q/normalization_param;

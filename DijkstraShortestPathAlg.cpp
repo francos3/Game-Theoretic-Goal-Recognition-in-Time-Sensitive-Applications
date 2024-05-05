@@ -406,14 +406,28 @@ void DijkstraShortestPathAlg::improve2vertex(BaseVertex *cur_vertex_pt, bool is_
     }
 }
 
+void printMemoryUsage() {
+    std::string line;
+    std::ifstream status("/proc/self/status");
+    while (getline(status, line)) {
+        if (line.substr(0, 6) == "VmSize") {
+            std::cout << "Virtual Memory Currently Used: " << line << std::endl;
+            break;
+        }
+    }
+}
+
 void DijkstraShortestPathAlg::clear()
 {
+    //cout<<"memory usage before clears:,";printMemoryUsage();
     m_stDeterminedVertices.clear();
     m_mpPredecessorVertex.clear();
     m_mpStartDistanceIndex.clear();
     m_quCandidateVertices.clear();
     m_mpPerimPaths.clear();
     m_mpFullPaths.clear();
+    //cout<<"memory usage after clears:,";printMemoryUsage();
+
 }
 DijkstraShortestPathAlg::DijkstraShortestPathAlg(void)
 {
@@ -985,9 +999,11 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
     double normalization_param = 0;
     int k = 1000;
     auto start_time = std::chrono::high_resolution_clock::now();
+    cout << "before creating YenAlg"; printMemoryUsage();
     YenTopKShortestPathsAlg yenAlg(*m_pDirectGraph,
                                    (*m_pDirectGraph).get_vertex(source->getID()),
                                    (*m_pDirectGraph).get_vertex(sink->getID()));
+    cout << "after creating YenAlg"; printMemoryUsage();
 
     // Output the k-shortest paths
     int i = 0;
@@ -1020,6 +1036,7 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
         //current_path.PrintOut(std::cout);
         //current_path.add_paths_set(all_paths);
         //MAKE THIS MORE EFFICIENT USING POINTERS
+        //cout << "before creating AGpath"; printMemoryUsage();
         current_path.GetVertexVector(AGpath);
         //cout << "i:"<<i<<",yen_path:,";
         //for (auto node : AGpath)
@@ -1027,6 +1044,7 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
         //cout << endl;
         //cout << "i:"<<i<<",path cost:"<< get_path_cost(&AGpath)<<endl;
         AGpaths.insert(AGpath);
+        //cout << "after adding AGpath"; printMemoryUsage();
         if(writeToFile){
             for (const auto& elem : AGpath) {
                 outfile << elem->getID() << ',';

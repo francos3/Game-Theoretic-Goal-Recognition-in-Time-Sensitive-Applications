@@ -208,6 +208,38 @@ public:
         //cost = cost * cost;
         return cost;
     }
+    float get_path_edge_cost(unsigned path, int parent){
+        auto parent_node = AGpaths2[path][parent];
+        auto child_node = AGpaths2[path][parent+1];
+        //cout << "parent:" << parent_node->getID() << ",child:," <<child_node->getID()<< endl;
+        return m_pDirectGraph->get_edge_weight(parent_node, child_node);
+    }
+    int get_path_size(unsigned path){
+        return AGpaths2[path].size();
+    }
+    float get_subpath_cost(unsigned path, int node)
+    {
+        float cost = 0;
+        bool start_counting = AGpaths2[path][0]->getID() == node;
+        for (size_t i = 0; i < AGpaths2[path].size() - 1; i++)
+        {
+            auto parent = AGpaths2[path][i];
+            auto child = AGpaths2[path][i + 1];
+            //cout << "parent:" << parent->getID() << flush << endl;
+            if(!start_counting){
+                if(child->getID()==node){
+                    start_counting = true;
+                    cost += m_pDirectGraph->get_edge_weight(parent, child);
+                }
+            }
+            else{
+                cost += m_pDirectGraph->get_edge_weight(parent, child);
+            }
+
+        }
+        //cost = cost * cost;
+        return cost;
+    }
 
     float get_cost_to_dest(unsigned pref, unsigned path)
     {
@@ -274,4 +306,4 @@ protected:
     void improve2vertexKeepPaths( BaseVertex* cur_vertex_pt, bool is_source2sink, float lambda_limit );
     void add_full_paths(std::map<int,BasePath*> origin_optimal_paths);
 };
-                
+void printMemoryUsage();
