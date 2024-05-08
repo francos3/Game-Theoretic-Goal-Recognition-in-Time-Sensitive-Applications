@@ -337,7 +337,10 @@ void DijkstraShortestPathAlg::improve2vertexKeepPaths(BaseVertex *cur_vertex_pt,
 void DijkstraShortestPathAlg::improve2vertex(BaseVertex *cur_vertex_pt, bool is_source2sink, float lambda_limit)
 {
     // 1. get the neighboring vertices
-    set<BaseVertex *> *neighbor_vertex_list_pt = new set<BaseVertex *>();
+    //set<BaseVertex *> *neighbor_vertex_list_pt = new set<BaseVertex *>();
+    std::unique_ptr<std::set<BaseVertex*>> neighbor_vertex_list_pt = std::make_unique<std::set<BaseVertex*>>();
+
+
 
     if (is_source2sink)
     {
@@ -996,7 +999,8 @@ void DijkstraShortestPathAlg::printAGFile()
     myfile.close();
 }
 double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
-    static int calls = 0;
+    static bool firstCall = true;  // Static variable to track the first function call
+
     double normalization_param = 0;
     int k = 1000;
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -1009,14 +1013,20 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
     // Output the k-shortest paths
     int i = 0;
     //Write it into a file
-    string filename = "paths";
-    filename = filename +"_i"+to_string(calls++)+"_S"+to_string(random_seed);
-    filename = ".txt ";
-        std::ofstream outfile(filename, std::ios_base::app);
-    if (!outfile) {
-        std::cerr << "Failed to open file: " << filename << '\n';
-        //return normalization_param;
+    const char* homeDir = std::getenv("HOME");
+
+    string filename = string(homeDir)+"/paths";
+    filename = filename +"_S"+to_string(random_seed);
+    filename += ".txt";
+    std::ios_base::openmode mode = firstCall ? std::ios::out : std::ios::app;
+    firstCall = false;
+    std::ofstream outfile(filename, mode);
+
+    if (writeToFile&&!outfile.is_open()) {
+        std::cerr << "Failed to open file." << std::endl;
+        exit(1);
     }
+
     while (yenAlg.has_next() && i < k)
     {
         ++i;
@@ -1061,6 +1071,9 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
     std::chrono::duration<double> diff = end_time - start_time;
     auto current_time = diff.count();
     cout << "Yen added,"<<i<<",paths in,"<<current_time<<","<<"budget:,"<<budget<<",normalization_param:,"<<normalization_param<<endl;
+    cout << "Memory before clear:,"; printMemoryUsage();
+    yenAlg.clear();
+    cout << "Memory after clear:,"; printMemoryUsage();
     return normalization_param;
     //exit(1);
 }
