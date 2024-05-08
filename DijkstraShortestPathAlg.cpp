@@ -996,6 +996,7 @@ void DijkstraShortestPathAlg::printAGFile()
     myfile.close();
 }
 double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink, float budget,bool writeToFile){
+    static int calls = 0;
     double normalization_param = 0;
     int k = 1000;
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -1008,8 +1009,10 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
     // Output the k-shortest paths
     int i = 0;
     //Write it into a file
-    string filename = "paths.txt";
-    std::ofstream outfile(filename, std::ios_base::app);
+    string filename = "paths";
+    filename = filename +"_i"+to_string(calls++)+"_S"+to_string(random_seed);
+    filename = ".txt ";
+        std::ofstream outfile(filename, std::ios_base::app);
     if (!outfile) {
         std::cerr << "Failed to open file: " << filename << '\n';
         //return normalization_param;
