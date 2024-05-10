@@ -1017,10 +1017,12 @@ double DijkstraShortestPathAlg::createAGYen(BaseVertex *source, BaseVertex *sink
 
     string filename = string(homeDir)+"/paths";
     filename = filename +"_S"+to_string(random_seed);
+    //filename = filename + "_R" + to_string(Destinations.size());
     filename += ".txt";
     std::ios_base::openmode mode = firstCall ? std::ios::out : std::ios::app;
     firstCall = false;
     std::ofstream outfile(filename, mode);
+    cout << "writeToFile:," << writeToFile << ",filename:," << filename << endl;
 
     if (writeToFile&&!outfile.is_open()) {
         std::cerr << "Failed to open file." << std::endl;
@@ -1407,7 +1409,7 @@ double DijkstraShortestPathAlg::load_paths(vector<vector<unsigned>> input_paths)
             AGpath.push_back((*m_pDirectGraph).get_vertex(node));
         }
         AGpaths.insert(AGpath);
-        cout << "Agpath:";
+        //cout << "Agpath:";
         int counter = 0;
         double path_weight = 0;
         auto parent_node = AGpath[0];
