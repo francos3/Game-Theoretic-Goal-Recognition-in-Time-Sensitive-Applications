@@ -115,6 +115,7 @@ vector<vector<float> > dest_prob_path;
 map<int, int> DestinationsOrder1;
 map<int, int> DestinationsOrder2;
 vector<vector<float>> dest_prob_per_prefix;
+bool save_paths = false;
 //REMOVE IF NOT DOING DRAWINGS!!!
 bitset<3> color_map[256][256]; //origin/destination/FinalPath
 //bitset<3> color_map[10][10];//origin/destination/FinalPath
@@ -294,6 +295,7 @@ void testYenAlg(const int &k,
     std::chrono::duration<double> diff = end_time - orig_start_time;
     auto current_time = diff.count();
     cout << "Yen added:" << i << "paths" << "in,"<<current_time<<" secs"<<endl;
+    cout << "After Yen,memory usage:"; printMemoryUsage();
     PthMat->add_paths_set(all_paths, d);
 }
 int optimizing_observer(PathMatrix *PM, int nodes, int t_max)
@@ -999,6 +1001,8 @@ void create_prefix_graph_from_SaT_file(){
     if(LoadPaths){
         cout << "Loading paths from paths.txt for debugging" << endl;
         normalization_param=main_dijkstra_alg->load_paths(input_paths);
+        cout << "memory after loading paths,";
+        printMemoryUsage();
     }
     else{//remove paths.txt if it exists before appending to it
         const char* filename = "paths.txt";
@@ -1008,14 +1012,19 @@ void create_prefix_graph_from_SaT_file(){
             //std::cout<<"start:"<<start<<",destination:"<<Destinations[dest]<<endl;
             //std::cout << "before finding paths:" << ctime(&timenow) << endl;
             std::cout<<"AGP,grandpatent_check="<<grandparent_check<<",acyclic:"<<acyclic<<",Destination["<<dest<<"]:"<<Destinations[dest]<<",budget:"<<Budget*main_dijkstra_alg->get_cost(Destinations[dest])<<endl;
+            cout<<"memory before creating paths for dest:,"<<dest<<",:,";
+            printMemoryUsage();
+            normalization_param=max(float(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),save_paths)),normalization_param);
             cout<<"memory after creating paths for dest:,"<<dest<<",:,";
             printMemoryUsage();
-            normalization_param=max(float(main_dijkstra_alg->createAGYen(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget * main_dijkstra_alg->get_cost(Destinations[dest]),false)),normalization_param);
+
             //main_dijkstra_alg->createAG(main_graph.get_vertex(start), main_graph.get_vertex(Destinations[dest]), Budget*main_dijkstra_alg->get_cost(Destinations[dest]),acyclic,grandparent_check);
             //std::cout << "after finding paths:" << ctime(&timenow) << endl;
         }
-        //cout << "Exiting Creating Yen Paths" << endl;
-        //exit(1);
+        if(save_paths){
+            cout << "Exiting Creating Yen Paths, only save_paths" << endl;
+            exit(1);
+        }
     }
     cout << "Final normalization param:," << normalization_param << endl;
     if(q_type==3){
@@ -4588,6 +4597,11 @@ int main(int argc, char *argv[])
             fixed_observer_strategy = true;
             std::cout<<"fixed_observer_strategy="<<fixed_observer_strategy<<endl;
         }
+        if (action == "save_paths")
+        {
+            save_paths = true;
+            std::cout<<"save_paths="<<save_paths<<endl;
+        }
     }
     //Check input file exists
     ifstream f(input_filename);
@@ -6730,6 +6744,8 @@ pair<float,float> calculate_statistics(const std::vector<float>& values) {
     float stddev = std::sqrt(variance);
 
     // Output the results
+    cout<<"Final Memory usage:,";
+    printMemoryUsage();
     std::cout << "Mean:," << mean << ",stdev:," << stddev << ",CV:, " << stddev/mean << ",entries:"<< n << endl;
     return make_pair(mean, stddev);
 }
@@ -6860,13 +6876,21 @@ void print_cutset_ids(set<unsigned>& cutset){
     cout << ",]";
 }
 void read_paths_from_file(){
-    ifstream file(input_paths_file);
+    const char* homeDir = std::getenv("HOME");
+    string filename = string(homeDir)+"/paths";
+    filename = filename +"_S"+to_string(random_seed);
+    filename += ".txt";
+    cout << "read_paths,filename:," << filename << endl;
+    //ifstream file(input_paths_file);
+    ifstream file(filename);
+    set<int> destinations_found;
 
     if (!file.is_open()) {
-        throw std::runtime_error("Unable to open file: " + input_paths_file);
+        throw std::runtime_error("Unable to open file: " + filename);
     }
 
     std::string line;
+    int counter = 0;
     while (std::getline(file, line)) {
         std::vector<unsigned> vec;
         std::stringstream ss(line);
@@ -6876,13 +6900,23 @@ void read_paths_from_file(){
             vec.push_back(std::stoi(value));
         }
 
+        if(destinations_found.find(vec.back())==destinations_found.end()){
+            if(destinations_found.size()>random_positions){
+                cout << "Finished loading paths after " << Destinations.size() << " Destinations." << endl;
+                break;//We found all the required destinations
+            }
+            cout<<"Loading new destination:,"<<vec.back()<<endl;
+            destinations_found.insert(vec.back());
+        }
         input_paths.push_back(vec);
+        counter++;
     }
+    cout << "Loaded " << counter << " paths"<<endl;
 
-    cout << "input paths:;";
-    for(auto path : input_paths){
-        cout << path << ";";
-    }
+    //cout << "input paths:;";
+    //for(auto path : input_paths){
+    //    cout << path << ";";
+    //}
     file.close();
 }
 /*void calculate_reward_last_cutset(){
