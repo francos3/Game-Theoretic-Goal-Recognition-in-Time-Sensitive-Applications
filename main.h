@@ -6,6 +6,7 @@
 #include <ctime>
 //#include <boost/timer/timer.hpp>
 extern std::vector<int> Destinations;
+extern bool save_paths;
 
 
 struct vect_comp_int{
