@@ -34,6 +34,7 @@ foreach my $file (@files) {
         if ($line =~ /Mean:,-?\d+(\.\d+)?([eE][-+]?\d+)?,stdev:,-?\d+(\.\d+)?([eE][-+]?\d+)?,CV:, ?-?\d+(\.\d+)?([eE][-+]?\d+)?,entries:\d+/ ||
             $line =~ /Found cutset, prev_cutset_prefix remains to:,\d+, repetitions:,\d+/ ||
             $line =~ /Iter:,\d+,cutset_reward:,[\d.]+,clean_cutset:,\[(.+)\]/ ||
+            $line =~ /phi_\w+:,\d+\.\d+/ ||
             $line =~ /FINISHED CPU \d+\.\d+ MEM \d+ MAXMEM \d+/) {
             print $out $line;
         }
