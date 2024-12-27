@@ -28,3 +28,5 @@ cmake .;make -j4
 
 7. Note that the A Priori Observer Response will always obtain a Nash Equilibira reward of 1/$DESTINATIONS because it always chooses the farthest destination, and it makes the selection from the origin, there is no need to simulate it.
 
+## Addendum
+See Appendix-AAMAS25.pdf for additional proof and results.
