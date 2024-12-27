@@ -132,6 +132,12 @@ public:
 	}
 	
 	~BasePath(void){}
+	//~BasePath() {
+		//std::cout << "clearing Basepath" << std::endl;
+		// No need to delete vertices if not owned
+		// Just clear the vector
+		//m_vtVertexList.clear();
+	//}
 
 	double Weight() const { return m_dWeight; }
 	void Weight(double val) { m_dWeight = val; }

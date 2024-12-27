@@ -1,5 +1,5 @@
 filename="Grid-"
-n=30
+n=3
 import random
 def create_grid_graph(n):
     global filename
@@ -32,6 +32,7 @@ def create_grid_graph(n):
 def save_graph_to_file(edges, filename):
     with open(filename, 'w') as file:
         for edge in edges:
+            print(edge)
             file.write(','.join(map(str, edge)) + '\n')
 
 # Example usage:

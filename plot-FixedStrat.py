@@ -13,12 +13,10 @@ def extract_data(file_paths):
     if skip_extract:
         return
     data_categories = defaultdict(lambda: defaultdict(list))
-    pattern = re.compile(r'log_prefix_N(?P<N>\d+)_R(?P<R>\d+)_F(?P<F>\d+)_S.*\.txt')
-    #data_pattern = re.compile(r'Mean:,(?P<Mean>\d+\.\d+),stdev:,(?P<stdev>\d+\.\d+),CV:, ?(?P<CV>\d+\.\d+),entries:(?P<entries>\d+)')
-    data_pattern = re.compile(r'Mean:,(?P<Mean>-?\d+(\.\d+)?([eE][-+]?\d+)?),stdev:,(?P<stdev>-?\d+(\.\d+)?([eE][-+]?\d+)?),CV:, ?(?P<CV>-?\d+(\.\d+)?([eE][-+]?\d+)?),entries:(?P<entries>\d+)')
-    cutset_pattern = re.compile(r'Found cutset, prev_cutset_prefix remains to:,(\d+), repetitions:,(\d+)')
-    #clean_cutset_pattern = re.compile(r'Iter:,\d+,clean_cutset:,\[(.+)\]')
-    clean_cutset_pattern = re.compile(r'Iter:,\d+,cutset_reward:,[\d.]+,clean_cutset:,\[(.+)\]')
+    #pattern = re.compile(r'log_prefix_N(?P<N>\d+)_R(?P<R>\d+)_F(?P<F>\d+)_P(?P<P>\d+)_S.*\.txt')
+    pattern = re.compile(r'log_prefix_NShanghai_R(?P<R>\d+)_F(?P<F>\d+)_P(?P<P>\d+)_S.*\.txt')
+    #data_pattern = re.compile(r'avg_iterative_reward:,(?P<avg_iterative_reward>-?\d+(\.\d+)?([eE][-+]?\d+)?),stdev:,(?P<stdev>-?\d+(\.\d+)?([eE][-+]?\d+)?),CV:, ?(?P<CV>-?\d+(\.\d+)?([eE][-+]?\d+)?),entries:(?P<entries>\d+)')
+    data_pattern = re.compile(r'avg_iterative_reward:,(?P<avg_iterative_reward>-?\d+(\.\d+)?([eE][-+]?\d+)?)')
     time_mem_pattern = re.compile(r'FINISHED CPU (?P<cpu_time>\d+\.\d+) MEM \d+ MAXMEM (?P<max_mem>\d+)')
 
 
@@ -26,49 +24,34 @@ def extract_data(file_paths):
         try:
             match = pattern.search(file_path)
             if match:
-                N = int(match.group('N'))
+                #N = int(match.group('N'))
                 R = int(match.group('R'))
                 F = int(match.group('F'))
-                category = (N, F, R)
+                P = int(match.group('P'))
+                #category = (N, F, R, P)
+                category = (F, R, P)
                 
                 with open(file_path, 'r') as file:
                     #print("working on file:",file)
-                    Mean_found=False
+                    avg_iterative_reward_found=False
                     for line in file:
                         data_match = data_pattern.search(line)
                         if data_match:
-                            Mean_found=True
-                            Mean = float(data_match.group('Mean'))
-                            stdev = float(data_match.group('stdev'))
-                            CV = float(data_match.group('CV'))
-                            entries = int(data_match.group('entries'))
+                            avg_iterative_reward_found=True
+                            avg_iterative_reward = float(data_match.group('avg_iterative_reward'))
 
-                            data_categories[category]['Mean'].append(Mean)
-                            data_categories[category]['stddev'].append(stdev)
-                            data_categories[category]['CV'].append(CV)
-                            data_categories[category]['entries'].append(entries)
+                            data_categories[category]['avg_iterative_reward'].append(avg_iterative_reward)
                         
-                        cutset_match = cutset_pattern.search(line)
-                        if cutset_match:
-                            Cutsets = int(cutset_match.group(1))
-
-                        clean_cutset_match = clean_cutset_pattern.search(line)
-                        if clean_cutset_match:
-                            clean_cutset_str = clean_cutset_match.group(1)
-                            clean_cutset_count = len(clean_cutset_str.split(','))
-
                         time_mem_match = time_mem_pattern.search(line)
                         if time_mem_match:
                             cpu_time = float(time_mem_match.group('cpu_time'))
                             max_mem = int(time_mem_match.group('max_mem'))
 
-                    if Mean_found:
-                        data_categories[category]['Cutsets'].append(Cutsets)
-                        data_categories[category]['CleanCutsetCount'].append(clean_cutset_count)
+                    if avg_iterative_reward_found:
                         data_categories[category]['cpu_time'].append(cpu_time)
                         data_categories[category]['max_mem'].append(max_mem/1000.0)
                     else:
-                        print("Mean not found for file:",file)
+                        print("avg_iterative_reward not found for file:",file)
         except FileNotFoundError:
             print(f"File {file_path} not found.")
             continue
@@ -79,40 +62,41 @@ folder_path = '/home/ugac002/Dropbox/GO_2023/experiments_FictitiousPlay_Rational
 # Get file paths matching the given format
 #file_paths = glob.glob(f'{folder_path}log_prefix_N*_R*_S*.txt')
 file_paths = glob.glob(f'{folder_path}log_prefix_N*_R*_S*.txt')
-
 data_categories = extract_data(file_paths)
 
 #pprint(dict(data_categories))
 
 # Update the CSV writer section to include 'F' value
 if not skip_extract:
-    sorted_categories = sorted(data_categories.keys(), key=lambda x: (x[0], x[1], x[2]))  # Sort by N, F, and R
+    #sorted_categories = sorted(data_categories.keys(), key=lambda x: (x[0], x[1], x[2], x[3]))  # Sort by N, F, R and P.
+    sorted_categories = sorted(data_categories.keys(), key=lambda x: (x[0], x[1], x[2]))  # Sort by N, F, R and P.
     with open('data_statistics.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['N', 'F', 'R', 'Average Reward', 'Average StdDev', 'Average CV', 'Average Entries', 'Distinct Cutsets', 'Last Cutset Size', 'Avg Time', 'Avg Mem'])
+        #writer.writerow(['N', 'F', 'R', 'P', 'Average Reward', 'Avg Time', 'Avg Mem'])
+        writer.writerow(['F', 'R', 'P', 'Average Reward', 'Avg Time', 'Avg Mem'])
 
         for category in sorted_categories:
             values = data_categories[category]
-            N, F, R = category
+            #N, F, R, P = category
+            F, R, P = category
 
 
             values = data_categories[category]
             if all(len(v) < 2 for v in values.values()):
-                N,F, R = category
-                print("\t skipping N:,",N,"F:,",F,"R:,",R)
+                #N,F, R, P = category
+                F, R, P = category
+                #print("\t skipping N:,",N,"F:,",F,"R:,",R, "P:",P)
+                print("\t skipping F:,",F,"R:,",R, "P:",P)
                 continue
 
-            print("N:,", N, "F:,",F,"R:,", R, "data:,", len(values['stddev']))
-            average_mean_savings = round(statistics.mean(values['Mean']), 2)
-            average_std_dev = round(statistics.mean(values['stddev']), 4)
-            average_CV = round(statistics.mean(values['CV']), 2)
-            average_entries = round(statistics.mean(values['entries']), 2)
-            average_cutsets = round(statistics.mean(values['Cutsets']), 2)
-            average_size = round(statistics.mean(values['CleanCutsetCount']), 2)
-            average_size = round(statistics.mean(values['CleanCutsetCount']), 2)
+            #print("N:,", N, "F:,",F,"R:,", R, "P:,",P, "data:,", len(values['avg_iterative_reward']))
+            print("F:,",F,"R:,", R, "P:,",P, "data:,", len(values['avg_iterative_reward']))
+            average_mean_savings = round(statistics.mean(values['avg_iterative_reward']), 2)
             average_time = round(statistics.mean(values['cpu_time']), 2)
             average_mem = round(statistics.mean(values['max_mem']), 2)
-            writer.writerow([N, F, R,average_mean_savings, average_std_dev, average_CV, average_entries, average_cutsets, average_size, average_time, average_mem])
+            #writer.writerow([N, F, R, P,average_mean_savings, average_time, average_mem])
+            writer.writerow([F, R, P,average_mean_savings, average_time, average_mem])
+
 #Plotting
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -126,34 +110,31 @@ plt.rcParams['text.latex.preamble'] = r'\usepackage{nccmath}'
 data = pd.read_csv('data_statistics.csv')
 
 # Filter data based on unique N values
-unique_N_values = data['N'].unique()
+#unique_N_values = data['N'].unique()
 
 # Create a new column 'F,R' by converting 'F' and 'R' columns to string and concatenating them
-data['F,R'] = data['F'].astype(str) + ',' + data['R'].astype(str)
+data['F,R,P'] = data['F'].astype(str) + ',' + data['R'].astype(str) + data['P'].astype(str) 
 
-# Plot a line for each 'F' value
-for f_value in data['F'].unique():
-    subset = data[data['F'] == f_value]
-    plt.plot(subset['R'], subset['Average Reward'], marker='o', label=f'K={f_value}')
+for (p_value, f_value), subset in data.groupby(['P', 'F']):
+    # Plotting the subset
+    plt.plot(subset['R'], subset['Average Reward'], marker='o', label=f'P={p_value}, K={f_value}')
+    # Annotating each point
     for idx, row in subset.iterrows():
         x_value, y_value = row['R'], row['Average Reward']
         plt.annotate(f'{y_value:.2f}', (x_value, y_value), textcoords="offset points", xytext=(0, -10), ha='right', fontsize=7)
 
-plt.xlabel('Destinations (|D|)')
+plt.xlabel('Destinations')
 plt.ylabel('Average Reward')
+plt.title('Fixed Stratedy, Average reward per |D|, Saturation Parameter K and Radius P.\n30x30 orthogonal graph with randomized origin and destinations.\n'+r'$q(d_{i})=min(1.0,\frac{1}{MaxCost(d_{i})/k})$')
 plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-#plt.suptitle('$q(d_i)=min(\frac{1}{LongestPathToDest/k},1.0)$')
-plt.title('Average reward per |D| and Saturation Parameter K.\n30x30 orthogonal graph with randomized origin and destinations.\n'+r'$q(d_{i})=min(1.0,\frac{1}{MaxCost(d_{i})/k})$')
-#plt.text(0.5, 0.01, r'$q(d_{i})=\frac{1}{(LongestPathTod_{i}/k)}$', ha='center', va='bottom')
-
-#plt.legend(title='K Value')
-plt.legend()
+#plt.legend(loc='upper left', bbox_to_anchor=(0.70, 0.98), borderaxespad=0.,ncol=2)  # Position the legend to the right of the plot
+plt.legend(loc='upper left', bbox_to_anchor=(0.70, 0.98), borderaxespad=0.)  # Position the legend to the right of the plot
 plt.grid(True)
+plt.savefig('average_reward_per_FandP.png')
+plt.show()
 
 # Save the plot to a file, if needed
-plt.savefig('average_reward_per_F.png')
 
-plt.show()  # Only use this line if you want to display the plot in your environment
 
 
 exit(1)

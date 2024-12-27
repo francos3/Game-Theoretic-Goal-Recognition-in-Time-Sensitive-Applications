@@ -90,7 +90,8 @@ def extract_data(file_paths):
 
     return data_categories
 # Folder path
-folder_path = '/home/ugac002/Dropbox/GO_2023/experiments_FictitiousPlay_Rationalized/'
+#folder_path = '/home/ugac002/Dropbox/GO_2023/experiments_FictitiousPlay_Rationalized/'
+folder_path= '/home/ugac002/Dropbox/GO_2023/experiments_Shanghai_200Experiments/'
 # Get file paths matching the given format
 #file_paths = glob.glob(f'{folder_path}log_prefix_N*_R*_S*.txt')
 file_paths = glob.glob(f'{folder_path}log_prefix_N*_R*_S*.txt')
@@ -106,7 +107,8 @@ if not skip_extract:
     with open('data_statistics.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         #writer.writerow(['N', 'F', 'R', 'Average Reward', 'Average StdDev', 'Average CV', 'Average Entries', 'Distinct Cutsets', 'Last Cutset Size', 'Avg Time', 'Avg Mem'])
-        writer.writerow(['F', 'R', 'Average Reward', 'Average StdDev', 'Average CV', 'Average Entries', 'Distinct Cutsets', 'Last Cutset Size', 'Avg Time', 'Avg Mem','Phi'])
+        #writer.writerow(['F', 'R', 'Average Rewarm', 'Average StdDev', 'Average CV', 'Average Entries', 'Distinct Cutsets', 'Last Cutset Size', 'Avg Time', 'Avg Mem','Phi'])
+        writer.writerow(['F', 'R', 'AvgStdDevIter','Average Reward', 'Average StdDev', 'Average CV', 'Average Entries', 'Distinct Cutsets', 'Distinct_Cutsets_std_dev','Last Cutset Size', 'Avg Time','std_dev_Time','Avg Mem','Mean'])
 
         for category in sorted_categories:
             values = data_categories[category]
@@ -127,14 +129,20 @@ if not skip_extract:
             average_mean_savings = round(statistics.mean(values['Phi']), 2)
             average_std_dev = round(statistics.stdev(values['Phi']), 4)
             average_CV = round(statistics.mean(values['CV']), 2)
+            average_stdev2 = round(statistics.mean(values['stddev']), 6)
             average_entries = round(statistics.mean(values['entries']), 2)
             average_cutsets = round(statistics.mean(values['Cutsets']), 2)
+            stdev_cutsets = round(statistics.stdev(values['Cutsets']), 4)
             average_size = round(statistics.mean(values['CleanCutsetCount']), 2)
             average_time = round(statistics.mean(values['cpu_time']), 2)
+            stdev_time = round(statistics.stdev(values['cpu_time']), 2)
             average_mem = round(statistics.mean(values['max_mem']), 2)
-            average_Phi = round(statistics.mean(values['Mean']), 2)
+            average_Mean = round(statistics.mean(values['Mean']), 2)
             #writer.writerow([N, F, R,average_mean_savings, average_std_dev, average_CV, average_entries, average_cutsets, average_size, average_time, average_mem])
-            writer.writerow([F, R,average_mean_savings, average_std_dev, average_CV, average_entries, average_cutsets, average_size, average_time, average_mem,average_Phi])
+            #writer.writerow([F, R,average_mean_savings, average_std_dev, average_CV, average_entries, average_cutsets, average_size, average_time, average_mem,average_Phi])
+            writer.writerow([F, R,average_stdev2,average_mean_savings, average_std_dev, average_CV, average_entries, average_cutsets, stdev_cutsets, average_size, average_time, stdev_time,average_mem, average_Mean])
+print("Exiting Extract")
+exit(1)
 #Plotting
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -215,7 +223,7 @@ for i, f_value in enumerate(categories):
         yval = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.2f}', ha='center', va='bottom', fontsize=8)
 
-plt.xlabel('Destinations (' + r'$|\mathcal{D}|$' + ')',fontsize=16,fontweight='bold')
+plt.xlabel(r'$|\mathcal{T}|$',fontsize=16,fontweight='bold')
 plt.ylabel('Distinct Cutsets',fontsize=16,fontweight='bold')
 #plt.title('Distinct Cutsets per number of destinations ' + r'$|\mathcal{D}|$' + ' and Saturation Parameter t.\n30x30 orthogonal graph with randomized origin and destinations\n'+r'$q(w(\gamma^{k+})=min(1.0,\frac{w(\gamma^{k+}) \times t}{MaxWeight})$'+';'+r'$MaxWeight=\max\limits_{\gamma \in \mathcal{G}} (w(\gamma))$',fontsize=17,fontweight='bold')
 plt.xticks(np.arange(min(data['R']), max(data['R'])+1, 1),fontweight='bold',fontsize=16)  # Ensuring only integer labels
@@ -244,7 +252,7 @@ for i, f_value in enumerate(categories):
         y_value = bar.get_height()
         plt.annotate(f'{y_value:.2f}', (bar.get_x() + bar.get_width() / 2, y_value), textcoords="offset points", xytext=(0, 3), ha='center', fontsize=7)
 
-plt.xlabel('Destinations (' + r'$|\mathcal{D}|$' + ')',fontsize=16,fontweight='bold')
+plt.xlabel(r'$|\mathcal{T}|$',fontsize=16,fontweight='bold')
 plt.ylabel('Average Runtime (seconds)',fontsize=16,fontweight='bold')
 plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 #plt.title('Average time (seconds) per' + r'$|\mathcal{D}|$' + ' and Saturation Parameter K.\n30x30 orthogonal graph with randomized origin and destinations.\n' + r'$q(w(\gamma^{k+})=min(1.0,\frac{w(\gamma^{k+}) \times t}{MaxWeight})$' + ';' + r'$MaxWeight=\max\limits_{\gamma \in \mathcal{G}} (w(\gamma))$', fontsize=14, fontweight='bold')

@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.cpp
+/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.cpp
 set
 -
 map
@@ -14,15 +14,23 @@ map
 vector
 -
 GraphElements.h
-/home/ugac002/Dropbox/GO-2021/src/GraphElements.h
+/home/ugac002/Dropbox/GO_2023/src/GraphElements.h
 Graph.h
-/home/ugac002/Dropbox/GO-2021/src/Graph.h
+/home/ugac002/Dropbox/GO_2023/src/Graph.h
 DijkstraShortestPathAlg.h
-/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.h
+/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.h
+iostream
+-
+fstream
+-
+YenTopKShortestPathsAlg.h
+/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.h
 
-/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.h
+/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.h
+stack
+-
 
-/home/ugac002/Dropbox/GO-2021/src/Graph.cpp
+/home/ugac002/Dropbox/GO_2023/src/Graph.cpp
 limits
 -
 set
@@ -40,11 +48,11 @@ iostream
 algorithm
 -
 GraphElements.h
-/home/ugac002/Dropbox/GO-2021/src/GraphElements.h
+/home/ugac002/Dropbox/GO_2023/src/GraphElements.h
 Graph.h
-/home/ugac002/Dropbox/GO-2021/src/Graph.h
+/home/ugac002/Dropbox/GO_2023/src/Graph.h
 
-/home/ugac002/Dropbox/GO-2021/src/Graph.h
+/home/ugac002/Dropbox/GO_2023/src/Graph.h
 iostream
 -
 memory
@@ -56,11 +64,11 @@ iterator
 bits/stdc++.h
 -
 main.h
-/home/ugac002/Dropbox/GO-2021/src/main.h
+/home/ugac002/Dropbox/GO_2023/src/main.h
 perfecthash_paths.hpp
-/home/ugac002/Dropbox/GO-2021/src/perfecthash_paths.hpp
+/home/ugac002/Dropbox/GO_2023/src/perfecthash_paths.hpp
 
-/home/ugac002/Dropbox/GO-2021/src/GraphElements.h
+/home/ugac002/Dropbox/GO_2023/src/GraphElements.h
 string
 -
 sstream
@@ -70,9 +78,9 @@ memory
 iostream
 -
 main.h
-/home/ugac002/Dropbox/GO-2021/src/main.h
+/home/ugac002/Dropbox/GO_2023/src/main.h
 
-/home/ugac002/Dropbox/GO-2021/src/YenTopKShortestPathsAlg.cpp
+/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.cpp
 set
 -
 map
@@ -82,19 +90,19 @@ queue
 vector
 -
 GraphElements.h
-/home/ugac002/Dropbox/GO-2021/src/GraphElements.h
+/home/ugac002/Dropbox/GO_2023/src/GraphElements.h
 Graph.h
-/home/ugac002/Dropbox/GO-2021/src/Graph.h
+/home/ugac002/Dropbox/GO_2023/src/Graph.h
 DijkstraShortestPathAlg.h
-/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.h
+/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.h
 YenTopKShortestPathsAlg.h
-/home/ugac002/Dropbox/GO-2021/src/YenTopKShortestPathsAlg.h
+/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.h
 
-/home/ugac002/Dropbox/GO-2021/src/YenTopKShortestPathsAlg.h
+/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.h
 
-/home/ugac002/Dropbox/GO-2021/src/colors.h
+/home/ugac002/Dropbox/GO_2023/src/colors.h
 
-/home/ugac002/Dropbox/GO-2021/src/main.cpp
+/home/ugac002/Dropbox/GO_2023/src/main.cpp
 limits
 -
 set
@@ -116,25 +124,47 @@ algorithm
 memory
 -
 GraphElements.h
-/home/ugac002/Dropbox/GO-2021/src/GraphElements.h
+/home/ugac002/Dropbox/GO_2023/src/GraphElements.h
 Graph.h
-/home/ugac002/Dropbox/GO-2021/src/Graph.h
+/home/ugac002/Dropbox/GO_2023/src/Graph.h
 DijkstraShortestPathAlg.h
-/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.h
+/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.h
 YenTopKShortestPathsAlg.h
-/home/ugac002/Dropbox/GO-2021/src/YenTopKShortestPathsAlg.h
+/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.h
 boost/numeric/ublas/matrix.hpp
 -
 colors.h
-/home/ugac002/Dropbox/GO-2021/src/colors.h
+/home/ugac002/Dropbox/GO_2023/src/colors.h
 tuple
 -
 boost/algorithm/string.hpp
 -
 ctime
 -
+boost/graph/astar_search.hpp
+-
+boost/graph/adjacency_list.hpp
+-
+boost/graph/random.hpp
+-
+boost/random.hpp
+-
+boost/graph/graphviz.hpp
+-
+sys/time.h
+-
+vector
+-
+list
+-
+iostream
+-
+fstream
+-
+math.h
+-
 
-/home/ugac002/Dropbox/GO-2021/src/main.h
+/home/ugac002/Dropbox/GO_2023/src/main.h
 vector
 -
 iostream
@@ -144,5 +174,5 @@ chrono
 ctime
 -
 
-/home/ugac002/Dropbox/GO-2021/src/perfecthash_paths.hpp
+/home/ugac002/Dropbox/GO_2023/src/perfecthash_paths.hpp
 

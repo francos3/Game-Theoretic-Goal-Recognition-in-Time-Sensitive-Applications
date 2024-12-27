@@ -1,1 +1,1 @@
-/usr/bin/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/yen.dir/DijkstraShortestPathAlg.cpp.o CMakeFiles/yen.dir/Graph.cpp.o CMakeFiles/yen.dir/main.cpp.o CMakeFiles/yen.dir/YenTopKShortestPathsAlg.cpp.o  -o yen 
+/usr/bin/c++ -rdynamic CMakeFiles/yen.dir/DijkstraShortestPathAlg.cpp.o CMakeFiles/yen.dir/Graph.cpp.o CMakeFiles/yen.dir/main.cpp.o CMakeFiles/yen.dir/YenTopKShortestPathsAlg.cpp.o -o yen 

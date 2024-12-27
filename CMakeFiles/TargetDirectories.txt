@@ -1,7 +1,7 @@
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/install/strip.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/install/local.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/install.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/list_install_components.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/rebuild_cache.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/edit_cache.dir
-/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/yen.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/yen.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/edit_cache.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/rebuild_cache.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/list_install_components.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/install.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/install/local.dir
+/home/ugac002/Dropbox/GO_2023/src/CMakeFiles/install/strip.dir

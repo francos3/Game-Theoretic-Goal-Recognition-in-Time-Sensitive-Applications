@@ -63,6 +63,7 @@ bool YenTopKShortestPathsAlg::has_next()
 
 BasePath* YenTopKShortestPathsAlg::next()
 {
+	//cout << "\t calling next, memory_usage:,";printMemoryUsage();
 	//1. Prepare for removing vertices and arcs
 	BasePath* cur_path = *(m_quPathCandidates.begin());//m_quPathCandidates.top();
 	
@@ -113,8 +114,10 @@ BasePath* YenTopKShortestPathsAlg::next()
 	}
 
 	//3. Calculate the shortest tree rooted at target vertex in the graph
+	//cout << "\t before calling reverse_tree, memory_usage:,";printMemoryUsage();
 	DijkstraShortestPathAlg reverse_tree(m_pGraph);
 	reverse_tree.get_shortest_path_flower(m_pTargetVertex);
+	//cout << "\t after calling get_shortest_path_flower, memory_usage:,";printMemoryUsage();
 
 	//4. Recover the deleted vertices and update the cost and identify the new candidates results
 	bool is_done = false;
@@ -172,6 +175,9 @@ BasePath* YenTopKShortestPathsAlg::next()
 				m_quPathCandidates.insert(sub_path);
 				m_mpDerivationVertexIndex[sub_path] = cur_recover_vertex;
 			}
+			else{
+				delete(sub_path);
+			}
 		}
 
 		//4.5 Restore the edge
@@ -193,6 +199,7 @@ BasePath* YenTopKShortestPathsAlg::next()
 	//5. Restore everything
 	m_pGraph->recover_removed_edges();
 	m_pGraph->recover_removed_vertices();
+	reverse_tree.clear();
 
 	return cur_path;
 }

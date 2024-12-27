@@ -1,18 +1,17 @@
+
+# Consider dependencies only in project.
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
+
 # The set of languages for which implicit dependencies are needed:
 set(CMAKE_DEPENDS_LANGUAGES
-  "CXX"
   )
-# The set of files for implicit dependencies of each language:
-set(CMAKE_DEPENDS_CHECK_CXX
-  "/home/ugac002/Dropbox/GO-2021/src/DijkstraShortestPathAlg.cpp" "/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/yen.dir/DijkstraShortestPathAlg.cpp.o"
-  "/home/ugac002/Dropbox/GO-2021/src/Graph.cpp" "/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/yen.dir/Graph.cpp.o"
-  "/home/ugac002/Dropbox/GO-2021/src/YenTopKShortestPathsAlg.cpp" "/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/yen.dir/YenTopKShortestPathsAlg.cpp.o"
-  "/home/ugac002/Dropbox/GO-2021/src/main.cpp" "/home/ugac002/Dropbox/GO-2021/src/CMakeFiles/yen.dir/main.cpp.o"
-  )
-set(CMAKE_CXX_COMPILER_ID "GNU")
 
-# The include file search paths:
-set(CMAKE_CXX_TARGET_INCLUDE_PATH
+# The set of dependency files which are needed:
+set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/ugac002/Dropbox/GO_2023/src/DijkstraShortestPathAlg.cpp" "CMakeFiles/yen.dir/DijkstraShortestPathAlg.cpp.o" "gcc" "CMakeFiles/yen.dir/DijkstraShortestPathAlg.cpp.o.d"
+  "/home/ugac002/Dropbox/GO_2023/src/Graph.cpp" "CMakeFiles/yen.dir/Graph.cpp.o" "gcc" "CMakeFiles/yen.dir/Graph.cpp.o.d"
+  "/home/ugac002/Dropbox/GO_2023/src/YenTopKShortestPathsAlg.cpp" "CMakeFiles/yen.dir/YenTopKShortestPathsAlg.cpp.o" "gcc" "CMakeFiles/yen.dir/YenTopKShortestPathsAlg.cpp.o.d"
+  "/home/ugac002/Dropbox/GO_2023/src/main.cpp" "CMakeFiles/yen.dir/main.cpp.o" "gcc" "CMakeFiles/yen.dir/main.cpp.o.d"
   )
 
 # Targets to which this target links.

@@ -13,6 +13,17 @@ def parse_map_file(filename):
         lines = file.readlines()[4:]  # Skip the first four lines
         return [list(line.strip()) for line in lines]
 
+def assign_node_numbers(grid):
+    """Assign a unique number to each node and return a dictionary mapping coordinates to numbers."""
+    node_number = 1
+    node_map = {}
+    for i in range(len(grid)):
+        for j in range(len(grid[i])):
+            if grid[i][j] == '.':
+                node_map[(i, j)] = node_number
+                node_number += 1
+    return node_map
+
 def write_csv(filename, edges):
     """Write the edges to a CSV file."""
     with open(filename, 'w') as file:
@@ -22,16 +33,17 @@ def write_csv(filename, edges):
 def main(map_filename):
     """Main function to read map file, process edges, and write to CSV."""
     grid = parse_map_file(map_filename)
+    node_map = assign_node_numbers(grid)
     edges = set()
     directions = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
     
     for i in range(len(grid)):
         for j in range(len(grid[i])):
             if grid[i][j] == '.':
-                origin_node = f"{i},{j}"
+                origin_node = node_map[(i, j)]
                 for dx, dy in directions:
                     if is_adjacent(grid, i, j, dx, dy):
-                        destination_node = f"{i + dx},{j + dy}"
+                        destination_node = node_map[(i + dx, j + dy)]
                         edge = (origin_node, destination_node)
                         edges.add(edge)  # Add each edge only once
 
@@ -45,4 +57,3 @@ if __name__ == "__main__":
 
     map_filename = sys.argv[1]
     main(map_filename)
-
