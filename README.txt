@@ -1,4 +1,13 @@
-#Instructions to configure, build and run any of the experiments in the paper.
+## Authors
+This code is authored by Sara Bernardini, Fabio Fagnini and Santiago Franco for the AAMAS 2025 paper titled: "Game-Theoretic Goal Recognition in Time-Sensitive Applications".
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+##Instructions
+
+To configure, build and run any of the experiments in the paper.
 
 1. To compile (Works in Ubuntu 22.04 and should work in most linux configurations), run from this folder: 
 cmake .;make -j4
