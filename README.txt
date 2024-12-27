@@ -5,6 +5,9 @@ This code is authored by Sara Bernardini, Fabio Fagnini and Santiago Franco for 
 
 This project is licensed under the MIT License. See the LICENSE file for details.
 
+##Dependencies for Ubuntu 22.04 packages: 
+libboost-all-dev
+
 ##Instructions
 
 To configure, build and run any of the experiments in the paper.
